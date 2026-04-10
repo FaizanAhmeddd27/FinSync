@@ -11,6 +11,7 @@ import OTPInput from '@/components/ui/OTPInput';
 import ThemeToggle from '@/components/common/ThemeToggle';
 import { GlowingOrb } from '@/components/animations/FloatingElements';
 import { authAPI } from '@/lib/api';
+import { toast } from 'sonner';
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -69,10 +70,13 @@ export default function ResetPassword() {
 
       if (data.success) {
         setShowSuccess(true);
+        toast.success('Password reset successfully! Redirecting...');
         setTimeout(() => navigate('/login', { replace: true }), 2500);
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Reset failed. Try again.');
+      const errMsg = err.response?.data?.message || 'Reset failed. Try again.';
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setIsLoading(false);
     }

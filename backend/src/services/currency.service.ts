@@ -10,11 +10,11 @@ interface CurrencyRates {
 
 export class CurrencyService {
   private static CACHE_KEY = 'currency_rates';
-  private static CACHE_DURATION = 3600; // 1 hour in seconds
+  private static CACHE_DURATION = 3600; 
 
   static async fetchLiveRates(): Promise<CurrencyRates> {
     try {
-      // Check Redis cache first
+      
       const cached = await redisHelpers.getCache<{ rates: CurrencyRates }>(
         this.CACHE_KEY
       );
@@ -23,7 +23,7 @@ export class CurrencyService {
         return cached.rates;
       }
 
-      // Fetch from Fixer.io
+      
       const response = await axios.get(`${env.FIXER_BASE_URL}/latest`, {
         params: {
           access_key: env.FIXER_API_KEY,
@@ -39,14 +39,14 @@ export class CurrencyService {
 
       const rates: CurrencyRates = response.data.rates;
 
-      // Cache in Redis
+      
       await redisHelpers.setCache(
         this.CACHE_KEY,
         { rates, timestamp: Date.now() },
         this.CACHE_DURATION
       );
 
-      // Store in database
+      
       await supabaseAdmin.from('currency_rates').insert({
         base_currency: response.data.base || 'EUR',
         rates,
@@ -60,7 +60,7 @@ export class CurrencyService {
     }
   }
 
-  // Fallback rates if API fails
+  
   private static getFallbackRates(): CurrencyRates {
     return {
       USD: 1.0,
@@ -74,7 +74,7 @@ export class CurrencyService {
     };
   }
 
-  // Convert amount between currencies
+  
   static async convert(
     amount: number,
     fromCurrency: string,
@@ -86,7 +86,7 @@ export class CurrencyService {
 
     const rates = await this.fetchLiveRates();
 
-    // Fixer.io uses EUR as base, convert through EUR
+    
     const fromRate = rates[fromCurrency];
     const toRate = rates[toCurrency];
 
@@ -113,7 +113,7 @@ export class CurrencyService {
     };
   }
 
-  // Get all supported rates relative to a base currency
+  
   static async getRatesForBase(
     baseCurrency: string = 'USD'
   ): Promise<CurrencyRates> {
@@ -128,7 +128,7 @@ export class CurrencyService {
     return convertedRates;
   }
 
-  // Format currency amount
+  
   static format(amount: number, currency: string): string {
     const symbols: Record<string, string> = {
       USD: '$',

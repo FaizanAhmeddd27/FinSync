@@ -302,6 +302,7 @@ export default function Transactions() {
                     label="Min Amount"
                     type="number"
                     placeholder="0"
+                    prefix={<span className="text-[10px] font-bold text-muted-foreground">{currency === 'USD' ? '$' : currency}</span>}
                     value={filters.min_amount}
                     onChange={(e) => updateFilter('min_amount', e.target.value)}
                   />
@@ -309,6 +310,7 @@ export default function Transactions() {
                     label="Max Amount"
                     type="number"
                     placeholder="999999"
+                    prefix={<span className="text-[10px] font-bold text-muted-foreground">{currency === 'USD' ? '$' : currency}</span>}
                     value={filters.max_amount}
                     onChange={(e) => updateFilter('max_amount', e.target.value)}
                   />

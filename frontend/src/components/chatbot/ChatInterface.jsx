@@ -7,26 +7,41 @@ import Button from '@/components/ui/Button';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { cn } from '@/lib/utils';
 
-export default function ChatInterface({ isWidget = false, onClose }) {
+export default function ChatInterface({ isWidget = false, onClose, initialSessionId = null, onSessionStart }) {
   const { user } = useAuthStore();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionId, setSessionId] = useState(null);
+  const [sessionId, setSessionId] = useState(initialSessionId);
   const [suggestions, setSuggestions] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(!!initialSessionId);
   const messagesEndRef = useRef(null);
 
-  // Initial greeting
+  // Initial greeting or load history
   useEffect(() => {
-    setMessages([
-      {
-        role: 'assistant',
-        content: `Hi ${user?.name?.split(' ')[0]}! I'm your FinSync AI assistant. How can I help you manage your finances today?`,
-        timestamp: new Date().toISOString(),
-      },
-    ]);
-    fetchSuggestions();
-  }, [user]);
+    const init = async () => {
+      if (sessionId) {
+        setHistoryLoading(true);
+        try {
+          const { data } = await chatbotAPI.getSession(sessionId);
+          if (data.success) {
+            setMessages(data.data.messages);
+          }
+        } catch { /* error */ }
+        setHistoryLoading(false);
+      } else {
+        setMessages([
+          {
+            role: 'assistant',
+            content: `Hi ${user?.name?.split(' ')[0]}! I'm your FinSync AI assistant. How can I help you manage your finances today?`,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+      }
+      fetchSuggestions();
+    };
+    init();
+  }, [user, sessionId]);
 
   const fetchSuggestions = async () => {
     try {
@@ -58,6 +73,7 @@ export default function ChatInterface({ isWidget = false, onClose }) {
       });
 
       if (data.success) {
+        const isNewSession = !sessionId;
         setSessionId(data.data.session_id);
         const aiMsg = {
           role: 'assistant',
@@ -65,6 +81,7 @@ export default function ChatInterface({ isWidget = false, onClose }) {
           timestamp: data.data.timestamp,
         };
         setMessages((prev) => [...prev, aiMsg]);
+        if (isNewSession && onSessionStart) onSessionStart();
       }
     } catch (err) {
       setMessages((prev) => [
@@ -91,7 +108,7 @@ export default function ChatInterface({ isWidget = false, onClose }) {
   return (
     <div className="flex flex-col h-full bg-card relative overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border bg-card/80 backdrop-blur-md z-10 sticky top-0">
+      <div className="flex items-center justify-between p-4 border-b border-border bg-card/50 backdrop-blur-xl z-20 sticky top-0">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center animate-pulse-glow">
             <Bot className="h-6 w-6 text-primary" />
@@ -128,6 +145,7 @@ export default function ChatInterface({ isWidget = false, onClose }) {
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
+        {historyLoading && <div className="py-8"><LoadingSpinner /></div>}
         {messages.map((msg, i) => {
           const isUser = msg.role === 'user';
           return (
@@ -137,7 +155,7 @@ export default function ChatInterface({ isWidget = false, onClose }) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.3 }}
               className={cn(
-                'flex gap-3 max-w-[85%]',
+                'flex gap-3 max-w-[90%] sm:max-w-[85%]',
                 isUser ? 'ml-auto flex-row-reverse' : ''
               )}
             >

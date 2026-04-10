@@ -1,12 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   ShieldAlert, ShieldCheck, ShieldX, AlertTriangle,
-  AlertCircle, CheckCircle2, XCircle, Eye,
-  Clock, ChevronLeft, ChevronRight, Filter,
-  RefreshCw, Lock,
+  Clock, ChevronLeft, ChevronRight,
+  RefreshCw, Lock, Eye, User as UserIcon, Activity
 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
+import { Card, CardContent } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
@@ -15,24 +14,24 @@ import FadeInView from '@/components/animations/FadeInView';
 import { fraudAPI } from '@/lib/api';
 import useAuthStore from '@/stores/authStore';
 import { formatCurrency, cn, timeAgo } from '@/lib/utils';
+import { toast } from 'sonner';
 
 const SEVERITY_CONFIG = {
-  low: { color: '#1c9cf0', bg: 'bg-primary/10', text: 'text-primary', label: 'Low' },
-  medium: { color: '#f7b928', bg: 'bg-warning/10', text: 'text-warning', label: 'Medium' },
-  high: { color: '#e0245e', bg: 'bg-destructive/10', text: 'text-destructive', label: 'High' },
-  critical: { color: '#f4212e', bg: 'bg-destructive/10', text: 'text-destructive', label: 'Critical' },
+  low: { color: '#1c9cf0', bg: 'bg-primary/10', text: 'text-primary', label: 'Low', score: '25-40' },
+  medium: { color: '#f7b928', bg: 'bg-warning/10', text: 'text-warning', label: 'Medium', score: '41-65' },
+  high: { color: '#e0245e', bg: 'bg-destructive/10', text: 'text-destructive', label: 'High', score: '66-85' },
+  critical: { color: '#f4212e', bg: 'bg-destructive/10', text: 'text-destructive', label: 'Critical', score: '86-100' },
 };
 
 const STATUS_CONFIG = {
   pending: { icon: Clock, color: '#f7b928', label: 'Pending' },
-  cleared: { icon: CheckCircle2, color: '#00b87a', label: 'Cleared' },
-  blocked: { icon: XCircle, color: '#f4212e', label: 'Blocked' },
-  reviewed: { icon: Eye, color: '#1c9cf0', label: 'Reviewed' },
+  cleared: { icon: ShieldCheck, color: '#00b87a', label: 'Cleared' },
+  blocked: { icon: ShieldX, color: '#f4212e', label: 'Blocked' },
 };
 
 export default function FraudAlerts() {
   const { user } = useAuthStore();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role?.toLowerCase() === 'admin';
 
   const [alerts, setAlerts] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -41,8 +40,8 @@ export default function FraudAlerts() {
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState('');
+  const [processingId, setProcessingId] = useState(null);
 
-  // Filters
   const [statusFilter, setStatusFilter] = useState('');
   const [severityFilter, setSeverityFilter] = useState('');
 
@@ -59,7 +58,9 @@ export default function FraudAlerts() {
         setSummary(data.data.summary || null);
         setPagination(data.data.pagination || { page, limit: 15, total: 0, totalPages: 0 });
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      toast.error('Failed to load fraud alerts');
+    }
     setLoading(false);
   }, [statusFilter, severityFilter]);
 
@@ -70,54 +71,68 @@ export default function FraudAlerts() {
     try {
       const { data } = await fraudAPI.getById(alertId);
       if (data.success) setSelectedAlert(data.data.alert);
-    } catch { /* ignore */ }
+    } catch {
+      toast.error('Failed to load alert details');
+    }
     setDetailLoading(false);
   };
 
   const handleClear = async (alertId) => {
+    setProcessingId(alertId);
     setActionLoading('clear');
     try {
-      await fraudAPI.clear(alertId);
-      setSelectedAlert(null);
-      fetchAlerts(pagination.page);
-    } catch { /* ignore */ }
+      const { data } = await fraudAPI.clear(alertId);
+      if (data.success) {
+        toast.success('Alert cleared and user notified');
+        setSelectedAlert(null);
+        fetchAlerts(pagination.page);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to clear alert');
+    }
     setActionLoading('');
+    setProcessingId(null);
   };
 
   const handleBlock = async (alertId) => {
-    if (!confirm('This will freeze the associated account. Continue?')) return;
+    if (!confirm('CRITICAL: This will freeze the user\'s account. Continue?')) return;
+    setProcessingId(alertId);
     setActionLoading('block');
     try {
-      await fraudAPI.block(alertId);
-      setSelectedAlert(null);
-      fetchAlerts(pagination.page);
-    } catch { /* ignore */ }
+      const { data } = await fraudAPI.block(alertId);
+      if (data.success) {
+        toast.success('Account frozen and alert blocked');
+        setSelectedAlert(null);
+        fetchAlerts(pagination.page);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to block account');
+    }
     setActionLoading('');
+    setProcessingId(null);
   };
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto">
-      {/* Header */}
+    <div className="space-y-6 max-w-[1400px] mx-auto p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <FadeInView>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Fraud Alerts</h1>
+            <h1 className="text-3xl font-extrabold tracking-tight">Fraud Management</h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Monitor suspicious activity on your accounts
+              {isAdmin ? 'Monitor and manage security threats across all accounts' : 'Security alerts for your transactions'}
             </p>
           </div>
         </FadeInView>
         <FadeInView delay={0.1}>
-          <Button variant="ghost" size="sm" onClick={() => fetchAlerts(1)} className="gap-2">
+          <Button variant="ghost" size="sm" onClick={() => fetchAlerts(1)} className="gap-2 cursor-pointer">
             <RefreshCw className="h-4 w-4" /> Refresh
           </Button>
         </FadeInView>
       </div>
 
-      {/* Summary Stats */}
       {summary && (
         <FadeInView delay={0.1}>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
             {[
               { label: 'Total', value: summary.total, icon: ShieldAlert, color: '#1c9cf0' },
               { label: 'Pending', value: summary.pending, icon: Clock, color: '#f7b928' },
@@ -125,23 +140,22 @@ export default function FraudAlerts() {
               { label: 'Blocked', value: summary.blocked, icon: ShieldX, color: '#f4212e' },
               { label: 'Critical', value: summary.critical, icon: AlertTriangle, color: '#e0245e' },
             ].map((s) => (
-              <div key={s.label} className="bg-card border border-border rounded-xl p-3 text-center">
-                <s.icon className="h-4 w-4 mx-auto mb-1" style={{ color: s.color }} />
-                <p className="text-lg font-bold" style={{ color: s.color }}>{s.value}</p>
-                <p className="text-[10px] text-muted-foreground">{s.label}</p>
+              <div key={s.label} className="bg-card/50 backdrop-blur-sm border border-border/50 rounded-2xl p-4 text-center transition-all hover:scale-105">
+                <s.icon className="h-5 w-5 mx-auto mb-2" style={{ color: s.color }} />
+                <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
+                <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold">{s.label}</p>
               </div>
             ))}
           </div>
         </FadeInView>
       )}
 
-      {/* Filters */}
       <FadeInView delay={0.15}>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-3">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-9 rounded-lg border border-border bg-input px-3 text-sm"
+            className="h-10 rounded-xl border border-border bg-card/40 px-4 text-sm cursor-pointer outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
           >
             <option value="">All Status</option>
             <option value="pending">Pending</option>
@@ -151,7 +165,7 @@ export default function FraudAlerts() {
           <select
             value={severityFilter}
             onChange={(e) => setSeverityFilter(e.target.value)}
-            className="h-9 rounded-lg border border-border bg-input px-3 text-sm"
+            className="h-10 rounded-xl border border-border bg-card/40 px-4 text-sm cursor-pointer outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
           >
             <option value="">All Severity</option>
             <option value="low">Low</option>
@@ -162,16 +176,15 @@ export default function FraudAlerts() {
         </div>
       </FadeInView>
 
-      {/* Alerts List */}
       <FadeInView delay={0.2}>
-        <Card>
-          <CardContent className="pt-5">
+        <Card className="border-none bg-transparent shadow-none">
+          <CardContent className="p-0">
             {loading ? (
-              <div className="flex items-center justify-center py-12">
+              <div className="flex items-center justify-center py-20">
                 <LoadingSpinner size="lg" />
               </div>
             ) : alerts.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {alerts.map((alert, i) => {
                   const severity = SEVERITY_CONFIG[alert.severity] || SEVERITY_CONFIG.low;
                   const status = STATUS_CONFIG[alert.status] || STATUS_CONFIG.pending;
@@ -180,26 +193,27 @@ export default function FraudAlerts() {
                   return (
                     <motion.div
                       key={alert.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.03 }}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.05 }}
                       onClick={() => viewDetail(alert.id)}
                       className={cn(
-                        'flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all hover:bg-muted/30',
-                        alert.severity === 'critical'
-                          ? 'border-destructive/30 bg-destructive/5'
-                          : 'border-border'
+                        'group relative flex flex-col sm:flex-row items-center gap-4 p-5 rounded-3xl border transition-all duration-300 cursor-pointer',
+                        'bg-card/30 backdrop-blur-xl border-border/40 hover:bg-card/60 hover:shadow-2xl hover:shadow-primary/10',
+                        alert.status === 'blocked' && 'border-destructive/40 bg-destructive/10 group-hover:bg-destructive/20'
                       )}
                     >
-                      {/* Severity Icon */}
-                      <div className={cn('h-10 w-10 rounded-xl flex items-center justify-center shrink-0', severity.bg)}>
-                        <AlertTriangle className="h-5 w-5" style={{ color: severity.color }} />
+                      <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+
+                      <div 
+                        className={cn('h-14 w-14 rounded-2xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110 shadow-lg', severity.bg)}
+                      >
+                        <AlertTriangle className="h-7 w-7" style={{ color: severity.color }} />
                       </div>
 
-                      {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-semibold capitalize">
+                        <div className="flex items-center gap-3 flex-wrap mb-1.5">
+                          <p className="text-base font-bold capitalize tracking-tight">
                             {alert.alert_type?.replace(/_/g, ' ')}
                           </p>
                           <Badge
@@ -210,153 +224,245 @@ export default function FraudAlerts() {
                                 ? 'warning'
                                 : 'default'
                             }
-                            className="text-[9px]"
+                            className="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider"
                           >
                             {severity.label}
                           </Badge>
+                          {isAdmin && alert.user && (
+                            <div className="flex items-center gap-1.5 ml-2 px-2 py-0.5 rounded-full bg-muted/40 text-[10px] font-bold text-muted-foreground">
+                              <UserIcon className="h-2.5 w-2.5" />
+                              {alert.user.name}
+                            </div>
+                          )}
                         </div>
-                        <p className="text-xs text-muted-foreground truncate mt-0.5">
+                        <p className="text-sm text-muted-foreground line-clamp-1 group-hover:line-clamp-none transition-all">
                           {alert.description}
                         </p>
-                        <p className="text-[10px] text-muted-foreground mt-1">
-                          {timeAgo(alert.created_at)}
-                        </p>
+                        <div className="flex items-center gap-4 mt-3">
+                          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60 font-medium">
+                            <Clock className="h-3.5 w-3.5" />
+                            {timeAgo(alert.created_at)}
+                          </div>
+                          {alert.account && (
+                            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60 font-medium">
+                              <Lock className="h-3.5 w-3.5" />
+                              {alert.account.account_number}
+                            </div>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Status */}
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <StatusIcon className="h-4 w-4" style={{ color: status.color }} />
-                        <span className="text-xs font-medium capitalize" style={{ color: status.color }}>
-                          {status.label}
-                        </span>
+                      <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
+                        {alert.status === 'pending' && isAdmin ? (
+                          <div className="flex items-center gap-3 w-full sm:w-auto">
+                            <Button
+                              variant="success"
+                              size="sm"
+                              className="flex-1 sm:flex-none h-10 px-5 text-xs gap-2 font-bold rounded-2xl shadow-xl shadow-success/10 cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleClear(alert.id);
+                              }}
+                              isLoading={actionLoading === 'clear' && processingId === alert.id}
+                            >
+                              <ShieldCheck className="h-4 w-4" /> Clear
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="flex-1 sm:flex-none h-10 px-5 text-xs gap-2 font-bold rounded-2xl shadow-xl shadow-destructive/10 cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleBlock(alert.id);
+                              }}
+                              isLoading={actionLoading === 'block' && processingId === alert.id}
+                            >
+                              <Lock className="h-4 w-4" /> Block
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className={cn(
+                            "flex items-center gap-2 px-4 py-2 rounded-2xl border text-[11px] font-black uppercase tracking-[0.1em] transition-all",
+                            alert.status === 'cleared' ? "bg-success/5 border-success/20 text-success" : 
+                            alert.status === 'blocked' ? "bg-destructive/5 border-destructive/20 text-destructive shadow-lg shadow-destructive/5" :
+                            "bg-muted/10 border-border/50 text-muted-foreground"
+                          )}>
+                            <StatusIcon className="h-4 w-4" />
+                            {status.label}
+                          </div>
+                        )}
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-10 w-10 rounded-2xl hover:bg-muted/50 hidden sm:flex cursor-pointer"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </Button>
                       </div>
                     </motion.div>
                   );
                 })}
 
-                {/* Pagination */}
                 {pagination.totalPages > 1 && (
-                  <div className="flex items-center justify-between pt-4 border-t border-border">
-                    <p className="text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between pt-8 border-t border-border/50">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
                       Page {pagination.page} of {pagination.totalPages}
                     </p>
-                    <div className="flex gap-1">
-                      <Button variant="outline" size="sm" onClick={() => fetchAlerts(pagination.page - 1)} disabled={!pagination.hasPrevious} className="h-8 w-8 p-0">
-                        <ChevronLeft className="h-4 w-4" />
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => fetchAlerts(pagination.page - 1)} disabled={!pagination.hasPrevious} className="h-10 w-10 p-0 rounded-xl cursor-pointer">
+                        <ChevronLeft className="h-5 w-5" />
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => fetchAlerts(pagination.page + 1)} disabled={!pagination.hasNext} className="h-8 w-8 p-0">
-                        <ChevronRight className="h-4 w-4" />
+                      <Button variant="outline" size="sm" onClick={() => fetchAlerts(pagination.page + 1)} disabled={!pagination.hasNext} className="h-10 w-10 p-0 rounded-xl cursor-pointer">
+                        <ChevronRight className="h-5 w-5" />
                       </Button>
                     </div>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="text-center py-12">
-                <div className="mx-auto h-16 w-16 rounded-2xl bg-success/10 flex items-center justify-center mb-4">
-                  <ShieldCheck className="h-8 w-8 text-success" />
+              <div className="text-center py-24 bg-card/20 rounded-[3rem] border border-dashed border-border/50">
+                <div className="mx-auto h-20 w-20 rounded-3xl bg-success/10 flex items-center justify-center mb-6">
+                  <ShieldCheck className="h-10 w-10 text-success" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">All Clear! ✨</h3>
-                <p className="text-sm text-muted-foreground">No fraud alerts to show</p>
+                <h3 className="text-2xl font-bold mb-2">System Secure ✨</h3>
+                <p className="text-sm text-muted-foreground font-medium">No pending threats detected</p>
               </div>
             )}
           </CardContent>
         </Card>
       </FadeInView>
 
-      {/* Alert Detail Modal */}
       <Modal
         isOpen={!!selectedAlert}
         onClose={() => setSelectedAlert(null)}
-        title="Alert Details"
+        title="Fraud Intelligence Report"
         size="lg"
       >
         {detailLoading ? (
-          <div className="flex items-center justify-center py-8"><LoadingSpinner /></div>
+          <div className="flex items-center justify-center py-12"><LoadingSpinner /></div>
         ) : selectedAlert && (
-          <div className="space-y-4">
-            {/* Severity Banner */}
+          <div className="space-y-6">
             <div className={cn(
-              'p-4 rounded-xl flex items-start gap-3',
-              selectedAlert.severity === 'critical' || selectedAlert.severity === 'high'
-                ? 'bg-destructive/10 border border-destructive/20'
-                : 'bg-warning/10 border border-warning/20'
+              'p-6 rounded-[2.5rem] border backdrop-blur-md',
+              selectedAlert.status === 'blocked' ? 'bg-destructive/5 border-destructive/20' : 'bg-card/50 border-border/50'
             )}>
-              <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" style={{
-                color: (SEVERITY_CONFIG[selectedAlert.severity] || {}).color
-              }} />
-              <div>
-                <p className="text-sm font-semibold capitalize">
-                  {selectedAlert.alert_type?.replace(/_/g, ' ')}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">{selectedAlert.description}</p>
+              <div className="flex items-start gap-4">
+                <div className={cn(
+                  'h-12 w-12 rounded-2xl flex items-center justify-center shrink-0',
+                  (SEVERITY_CONFIG[selectedAlert.severity] || {}).bg
+                )}>
+                  <AlertTriangle className="h-6 w-6" style={{
+                    color: (SEVERITY_CONFIG[selectedAlert.severity] || {}).color
+                  }} />
+                </div>
+                <div>
+                  <p className="text-lg font-black capitalize tracking-tight flex items-center gap-2">
+                    {selectedAlert.alert_type?.replace(/_/g, ' ')}
+                    {selectedAlert.status === 'blocked' && (
+                      <Badge variant="destructive" className="rounded-full text-[10px] px-2 py-0">ENFORCED</Badge>
+                    )}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{selectedAlert.description}</p>
+                </div>
               </div>
             </div>
 
-            {/* Details */}
-            <div className="space-y-2">
-              {[
-                { label: 'Alert ID', value: selectedAlert.id?.slice(0, 8) + '...' },
-                { label: 'Severity', value: selectedAlert.severity },
-                { label: 'Status', value: selectedAlert.status },
-                { label: 'Created', value: new Date(selectedAlert.created_at).toLocaleString() },
-                ...(selectedAlert.reviewed_at
-                  ? [{ label: 'Reviewed', value: new Date(selectedAlert.reviewed_at).toLocaleString() }]
-                  : []),
-                ...(selectedAlert.reviewer
-                  ? [{ label: 'Reviewed By', value: selectedAlert.reviewer.name }]
-                  : []),
-              ].map((item) => (
-                <div key={item.label} className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">{item.label}</span>
-                  <span className="font-medium capitalize">{item.value}</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-5 rounded-[2rem] bg-muted/20 border border-border/40">
+                <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
+                  <Activity className="h-3 w-3" /> Risk Intelligence
+                </p>
+                <div className="flex justify-between items-center bg-card/60 p-3 rounded-2xl border border-border/40 mb-2">
+                  <span className="text-xs font-bold text-muted-foreground">Internal Risk Score</span>
+                  <span className="text-lg font-black" style={{ 
+                    color: (SEVERITY_CONFIG[selectedAlert.severity] || {}).color 
+                  }}>
+                    { (SEVERITY_CONFIG[selectedAlert.severity] || {}).score }
+                  </span>
                 </div>
-              ))}
+                <div className="flex justify-between items-center text-xs px-1">
+                  <span className="text-muted-foreground">Detection Engine:</span>
+                  <span className="font-bold">FinSync AI 3.0</span>
+                </div>
+              </div>
+
+              {isAdmin && selectedAlert.user && (
+                <div className="p-5 rounded-[2rem] bg-muted/20 border border-border/40">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
+                    <UserIcon className="h-3 w-3" /> Affected User
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center font-black text-primary border border-primary/20">
+                      {selectedAlert.user.name?.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-black truncate">{selectedAlert.user.name}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{selectedAlert.user.email}</p>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-[10px] font-bold text-success flex items-center gap-1">
+                    <ShieldCheck className="h-2.5 w-2.5" /> KYC Verified Profile
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Transaction Info */}
             {selectedAlert.ledger_entry && (
-              <div className="p-3 rounded-lg bg-muted/50 border border-border">
-                <p className="text-xs font-medium mb-2">Transaction Details</p>
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Amount</span>
-                    <span className="font-medium">
+              <div className="p-6 rounded-[2.5rem] bg-card/40 border border-border/50 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-5">
+                   <Activity className="h-24 w-24" />
+                </div>
+                <p className="text-xs font-black uppercase tracking-[0.2em] mb-4 text-primary">Transaction Dynamics</p>
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground font-black uppercase mb-1">Impact Value</p>
+                    <p className="text-2xl font-black font-mono">
                       {formatCurrency(selectedAlert.ledger_entry.amount, 'USD')}
-                    </span>
+                    </p>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Type</span>
-                    <span className="capitalize">{selectedAlert.ledger_entry.type}</span>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground font-black uppercase mb-1">Status</p>
+                    <Badge variant="outline" className="font-black uppercase tracking-widest text-[10px] bg-card/60 backdrop-blur-none border-border">
+                      {selectedAlert.ledger_entry.type}
+                    </Badge>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Description</span>
-                    <span className="truncate ml-4">{selectedAlert.ledger_entry.description}</span>
+                  <div className="col-span-2 pt-2">
+                    <p className="text-[10px] text-muted-foreground font-black uppercase mb-1">Narrative Log</p>
+                    <p className="font-bold text-sm leading-relaxed">{selectedAlert.ledger_entry.description}</p>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Admin Actions */}
-            {isAdmin && selectedAlert.status === 'pending' && (
-              <div className="flex gap-3 pt-2 border-t border-border">
+            {selectedAlert.reviewer && (
+              <div className="p-4 rounded-2xl bg-success/5 border border-success/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                   <ShieldCheck className="h-4 w-4 text-success" />
+                   <span className="text-xs font-bold">Reviewed by {selectedAlert.reviewer.name}</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground">{new Date(selectedAlert.reviewed_at).toLocaleString()}</span>
+              </div>
+            )}
+
+            {selectedAlert.status === 'pending' && isAdmin && (
+              <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-border/50">
                 <Button
                   variant="success"
-                  size="sm"
-                  className="flex-1 gap-2"
+                  size="lg"
+                  className="flex-1 h-14 gap-3 font-black rounded-3xl shadow-2xl shadow-success/20 cursor-pointer"
                   onClick={() => handleClear(selectedAlert.id)}
-                  isLoading={actionLoading === 'clear'}
+                  isLoading={actionLoading === 'clear' && processingId === selectedAlert.id}
                 >
-                  <CheckCircle2 className="h-4 w-4" /> Clear Alert
+                  <ShieldCheck className="h-6 w-6" /> VERIFY & CLEAR
                 </Button>
                 <Button
                   variant="destructive"
-                  size="sm"
-                  className="flex-1 gap-2"
+                  size="lg"
+                  className="flex-1 h-14 gap-3 font-black rounded-3xl shadow-2xl shadow-destructive/20 cursor-pointer"
                   onClick={() => handleBlock(selectedAlert.id)}
-                  isLoading={actionLoading === 'block'}
+                  isLoading={actionLoading === 'block' && processingId === selectedAlert.id}
                 >
-                  <Lock className="h-4 w-4" /> Block Account
+                  <Lock className="h-6 w-6" /> FREEZE USER
                 </Button>
               </div>
             )}

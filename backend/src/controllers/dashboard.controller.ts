@@ -13,14 +13,14 @@ export const getDashboard = asyncHandler(
     const userId = req.user.id;
     const preferredCurrency = req.user.preferred_currency || 'USD';
 
-    // Try cache
+    
     const cacheKey = `dashboard:${userId}`;
     const cached = await redisHelpers.getCache<any>(cacheKey);
     if (cached) {
       return res.status(200).json({ success: true, data: cached });
     }
 
-    // ====== ACCOUNTS ======
+    
     const { data: accounts } = await supabaseAdmin
       .from('accounts')
       .select('*')
@@ -30,22 +30,22 @@ export const getDashboard = asyncHandler(
 
     const accountIds = (accounts || []).map((a) => a.id);
 
-    // Build account_id -> currency map for transaction conversion
+    
     const accountCurrencyMap: Record<string, string> = {};
     for (const acc of accounts || []) {
       accountCurrencyMap[acc.id] = acc.currency;
     }
 
-    // ====== TOTAL BALANCE (converted to preferred currency) ======
+    
     let totalBalance = 0;
     const balanceByCurrency: Record<string, number> = {};
 
     for (const acc of accounts || []) {
-      // Track raw balance per currency
+      
       balanceByCurrency[acc.currency] =
         (balanceByCurrency[acc.currency] || 0) + Number(acc.balance);
 
-      // Convert to preferred currency for total
+      
       if (acc.currency === preferredCurrency) {
         totalBalance += Number(acc.balance);
       } else {
@@ -57,13 +57,13 @@ export const getDashboard = asyncHandler(
           );
           totalBalance += convertedAmount;
         } catch {
-          // If conversion fails, skip or use raw (won't be accurate but won't break)
+          
           totalBalance += Number(acc.balance);
         }
       }
     }
 
-    // ====== MONTHLY INCOME & SPENDING (converted to preferred currency) ======
+    
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
@@ -84,11 +84,11 @@ export const getDashboard = asyncHandler(
       for (const t of monthlyTxns || []) {
         const txnAmount = Number(t.amount);
 
-        // Determine the currency: use txn currency > account currency > preferred
+        
         const txnCurrency =
           t.currency || accountCurrencyMap[t.account_id] || preferredCurrency;
 
-        // Convert to preferred currency
+        
         let convertedAmount = txnAmount;
         if (txnCurrency !== preferredCurrency) {
           try {
@@ -105,7 +105,7 @@ export const getDashboard = asyncHandler(
 
         if (t.type === 'credit') {
           monthlyIncome += convertedAmount;
-          // Track raw amount per currency
+          
           incomeByCurrency[txnCurrency] =
             (incomeByCurrency[txnCurrency] || 0) + txnAmount;
         } else {
@@ -116,7 +116,7 @@ export const getDashboard = asyncHandler(
       }
     }
 
-    // ====== RECENT TRANSACTIONS ======
+    
     let recentTransactions: any[] = [];
     if (accountIds.length > 0) {
       const { data: recent } = await supabaseAdmin
@@ -132,7 +132,7 @@ export const getDashboard = asyncHandler(
         .limit(5);
 
       recentTransactions = (recent || []).map((t: any) => {
-        // Resolve the actual currency for this transaction
+        
         const txnCurrency =
           t.currency ||
           t.accounts?.currency ||
@@ -152,7 +152,7 @@ export const getDashboard = asyncHandler(
       });
     }
 
-    // ====== BALANCE HISTORY (converted to preferred currency) ======
+    
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000);
     let balanceHistory: Array<{ date: string; balance: number }> = [];
 
@@ -164,7 +164,7 @@ export const getDashboard = asyncHandler(
         .gte('created_at', thirtyDaysAgo.toISOString())
         .order('created_at', { ascending: true });
 
-      // Group by day
+      
       const dailyMap = new Map<string, Map<string, number>>();
       (historyTxns || []).forEach((txn) => {
         const date = new Date(txn.created_at).toISOString().split('T')[0];
@@ -172,7 +172,7 @@ export const getDashboard = asyncHandler(
         dailyMap.get(date)!.set(txn.account_id, Number(txn.running_balance));
       });
 
-      // Pre-fetch conversion rates to avoid repeated API calls
+      
       const uniqueCurrencies = [
         ...new Set(Object.values(accountCurrencyMap)),
       ].filter((c) => c !== preferredCurrency);
@@ -203,7 +203,7 @@ export const getDashboard = asyncHandler(
           });
         }
 
-        // Sum all account balances, converting each to preferred currency
+        
         let dayTotal = 0;
         for (const [accId, bal] of Object.entries(accountBalances)) {
           const accCurrency = accountCurrencyMap[accId] || preferredCurrency;
@@ -222,21 +222,21 @@ export const getDashboard = asyncHandler(
       }
     }
 
-    // ====== UNREAD NOTIFICATIONS ======
+    
     const { count: unreadNotifications } = await supabaseAdmin
       .from('notifications')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
       .eq('status', 'unread');
 
-    // ====== PENDING FRAUD ALERTS ======
+    
     const { count: pendingAlerts } = await supabaseAdmin
       .from('fraud_alerts')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
       .eq('status', 'pending');
 
-    // ====== BUILD RESPONSE ======
+    
     const dashboardData = {
       stats: {
         totalBalance: Math.round(totalBalance * 100) / 100,
@@ -265,7 +265,7 @@ export const getDashboard = asyncHandler(
       pendingAlerts: pendingAlerts || 0,
     };
 
-    // Cache for 2 minutes
+    
     await redisHelpers.setCache(cacheKey, dashboardData, 120);
 
     res.status(200).json({
@@ -274,3 +274,198 @@ export const getDashboard = asyncHandler(
     });
   }
 );
+
+export const getSpendingHeatmap = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) throw new UnauthorizedError();
+  const userId = req.user.id;
+
+  
+  const oneYearAgo = new Date();
+  oneYearAgo.setDate(oneYearAgo.getDate() - 365);
+  const startDateStr = oneYearAgo.toISOString().split('T')[0];
+
+  const preferredCurrency = req.user.preferred_currency || 'USD';
+
+  const { data: summaryData } = await supabaseAdmin
+    .from('daily_spending_summary')
+    .select('date, total_amount, transaction_count')
+    .eq('user_id', userId)
+    .gte('date', startDateStr)
+    .order('date', { ascending: true });
+
+  
+  
+  const thirtyOneDaysAgo = new Date();
+  thirtyOneDaysAgo.setDate(thirtyOneDaysAgo.getDate() - 31);
+
+  const { data: accounts } = await supabaseAdmin
+    .from('accounts')
+    .select('id, currency')
+    .eq('user_id', userId)
+    .eq('status', 'active');
+
+  const accountIds = (accounts || []).map((a) => a.id);
+  const accountCurrencyMap: Record<string, string> = {};
+  (accounts || []).forEach(a => accountCurrencyMap[a.id] = a.currency);
+
+  let liveRows: any[] = [];
+
+  if (accountIds.length > 0) {
+    const { data: liveTxns } = await supabaseAdmin
+      .from('ledger')
+      .select('amount, type, created_at, account_id, currency')
+      .in('account_id', accountIds)
+      .neq('type', 'credit') 
+      .gt('amount', 0)
+      .gte('created_at', thirtyOneDaysAgo.toISOString());
+
+    
+    const liveMap: Record<string, { total: number; count: number }> = {};
+    
+    for (const txn of liveTxns || []) {
+      const date = new Date(txn.created_at).toISOString().split('T')[0];
+      const txnAmount = Number(txn.amount);
+      const txnCurrency = txn.currency || accountCurrencyMap[txn.account_id] || preferredCurrency;
+
+      let convertedAmount = txnAmount;
+      if (txnCurrency !== preferredCurrency) {
+        try {
+          const result = await CurrencyService.convert(txnAmount, txnCurrency, preferredCurrency);
+          convertedAmount = result.convertedAmount;
+        } catch {
+          convertedAmount = txnAmount;
+        }
+      }
+
+      if (!liveMap[date]) {
+        liveMap[date] = { total: 0, count: 0 };
+      }
+      liveMap[date].total += convertedAmount;
+      liveMap[date].count += 1;
+    }
+
+    liveRows = Object.entries(liveMap).map(([date, data]) => ({
+      date,
+      total_amount: data.total,
+      transaction_count: data.count,
+    }));
+  }
+
+  
+  const finalMap = new Map<string, any>();
+
+  
+  (summaryData || []).forEach((r) => {
+    finalMap.set(r.date.toString(), {
+      date: r.date.toString(),
+      total_amount: Number(r.total_amount),
+      transaction_count: r.transaction_count,
+    });
+  });
+
+  
+  liveRows.forEach((r) => {
+    finalMap.set(r.date, {
+      date: r.date,
+      total_amount: r.total_amount,
+      transaction_count: r.transaction_count,
+    });
+  });
+
+  const rows = Array.from(finalMap.values()).sort((a, b) =>
+    a.date.localeCompare(b.date)
+  );
+
+  
+  if (rows.length === 0) {
+    return res.status(200).json({
+      success: true,
+      data: {
+        heatmap: [],
+        insights: {
+          busiestDay: null,
+          weekendVsWeekdayPercent: 0,
+          quietestMonth: null,
+          weekendVsWeekday: { weekend: 0, weekday: 0 }
+        },
+      },
+    });
+  }
+
+  
+  let maxDay = rows[0];
+  let weekdayTotal = 0;
+  let weekdayCount = 0;
+  let weekendTotal = 0;
+  let weekendCount = 0;
+
+  const monthlyTotals: Record<string, number> = {};
+
+  for (const row of rows) {
+    const amount = Number(row.total_amount);
+    
+    
+    if (amount > Number(maxDay.total_amount)) {
+      maxDay = row;
+    }
+
+    
+    const d = new Date(row.date);
+    const dayOfWeek = d.getDay(); 
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      weekendTotal += amount;
+      weekendCount++;
+    } else {
+      weekdayTotal += amount;
+      weekdayCount++;
+    }
+
+    
+    const month = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+    monthlyTotals[month] = (monthlyTotals[month] || 0) + amount;
+  }
+
+  
+  const avgWeekday = weekdayCount > 0 ? weekdayTotal / weekdayCount : 0;
+  const avgWeekend = weekendCount > 0 ? weekendTotal / weekendCount : 0;
+  
+  let weekendVsWeekdayPercent = 0;
+  if (avgWeekday > 0) {
+    weekendVsWeekdayPercent = ((avgWeekend - avgWeekday) / avgWeekday) * 100;
+  } else if (avgWeekend > 0) {
+    weekendVsWeekdayPercent = 100; 
+  }
+
+  
+  let quietestMonth = null;
+  let minMonthAmount = Infinity;
+  for (const [month, total] of Object.entries(monthlyTotals)) {
+    if (total < minMonthAmount) {
+      minMonthAmount = total;
+      quietestMonth = month;
+    }
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      heatmap: rows.map(r => ({
+        date: r.date,
+        amount: Math.round(Number(r.total_amount) * 100) / 100,
+        count: r.transaction_count
+      })),
+      insights: {
+        busiestDay: maxDay ? {
+          date: maxDay.date,
+          amount: Math.round(Number(maxDay.total_amount) * 100) / 100
+        } : null,
+        weekendVsWeekdayPercent: Math.round(weekendVsWeekdayPercent),
+        weekendVsWeekday: {
+          weekend: Math.round(avgWeekend * 100) / 100,
+          weekday: Math.round(avgWeekday * 100) / 100
+        },
+        quietestMonth
+      }
+    }
+  });
+});

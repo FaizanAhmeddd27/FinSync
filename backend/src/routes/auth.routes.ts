@@ -11,12 +11,14 @@ import {
   logout,
   getCurrentUser,
   toggle2FA,
+  updateProfile,
   googleCallback,
   githubCallback,
 } from '../controllers/auth.controller';
 import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { authLimiter, otpLimiter } from '../middleware/rateLimiter';
+import { upload } from '../utils/upload';
 import {
   registerSchema,
   loginSchema,
@@ -24,11 +26,12 @@ import {
   forgotPasswordSchema,
   resetPasswordSchema,
   resendOTPSchema,
+  updateProfileSchema,
 } from '../middleware/validators/auth.validator';
 
 const router = Router();
 
-router.post('/register', authLimiter, validate(registerSchema), register);
+router.post('/register', authLimiter, upload.single('avatar'), validate(registerSchema), register);
 router.post('/login', authLimiter, validate(loginSchema), login);
 router.post('/verify-otp', otpLimiter, validate(verifyOTPSchema), verifyOTP);
 router.post('/resend-otp', otpLimiter, validate(resendOTPSchema), resendOTP);
@@ -38,6 +41,7 @@ router.post('/refresh-token', refreshToken);
 router.post('/logout', authenticate, logout);
 
 router.get('/me', authenticate, getCurrentUser);
+router.patch('/profile', authenticate, upload.single('avatar'), validate(updateProfileSchema), updateProfile);
 router.patch('/toggle-2fa', authenticate, toggle2FA);
 
 router.get(

@@ -16,3 +16,17 @@ export const transactionQuerySchema = z.object({
 });
 
 export type TransactionQueryInput = z.infer<typeof transactionQuerySchema>;
+
+export const createTransactionSchema = z.object({
+  account_id: z.string().uuid(),
+  amount: z.number().positive(),
+  type: z.enum(['credit', 'debit']),
+  category: z.string().min(1),
+  description: z.string().max(500).optional(),
+});
+
+export const updateTransactionSchema = z.object({
+  amount: z.number().positive().optional(),
+  category: z.string().min(1).optional(),
+  description: z.string().max(500).optional(),
+});

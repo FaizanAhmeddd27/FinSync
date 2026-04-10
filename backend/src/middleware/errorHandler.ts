@@ -15,7 +15,7 @@ export const errorHandler = (
     stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
   });
 
-  // Known operational errors
+  
   if (err instanceof AppError) {
     const response: ApiResponse = {
       success: false,
@@ -31,7 +31,7 @@ export const errorHandler = (
     return;
   }
 
-  // Supabase / PostgreSQL errors
+  
   if ((err as any).code === '23505') {
     res.status(409).json({
       success: false,
@@ -50,7 +50,7 @@ export const errorHandler = (
     return;
   }
 
-  // Unknown errors
+  
   res.status(500).json({
     success: false,
     message: process.env.NODE_ENV === 'production'
@@ -60,7 +60,7 @@ export const errorHandler = (
   });
 };
 
-// Catch async errors wrapper
+
 export const asyncHandler = (fn: Function) => {
   return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch(next);

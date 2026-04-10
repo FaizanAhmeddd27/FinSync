@@ -15,6 +15,8 @@ import { GlowingOrb } from '@/components/animations/FloatingElements';
 import { useTheme } from '@/context/ThemeContext';
 import useAuthStore from '@/stores/authStore';
 import { authAPI } from '@/lib/api';
+import { toast } from 'sonner';
+import StackedFinanceCards from '@/components/ui/StackedFinanceCards';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -154,24 +156,32 @@ export default function Register() {
     setError('');
 
     try {
-      const result = await register({
-        name: form.name.trim(),
-        email: form.email.trim().toLowerCase(),
-        password: form.password,
-        phone: form.phone || undefined,
-        dob: form.dob || undefined,
-        preferred_currency: form.preferred_currency,
-        language: form.language,
-      });
+      const formData = new FormData();
+      formData.append('name', form.name.trim());
+      formData.append('email', form.email.trim().toLowerCase());
+      formData.append('password', form.password);
+      if (form.phone) formData.append('phone', form.phone);
+      if (form.dob) formData.append('dob', form.dob);
+      formData.append('preferred_currency', form.preferred_currency);
+      formData.append('language', form.language);
+      
+      if (form.avatar) {
+        formData.append('avatar', form.avatar);
+      }
+
+      const result = await register(formData);
 
       if (result.success) {
         setUserId(result.data?.userId || result.userId);
         setDirection(1);
         setStep(3);
         startResendCooldown();
+        toast.success('Account created! Please verify your email.');
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed');
+      const errMsg = err.response?.data?.message || 'Registration failed';
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setIsLoading(false);
     }
@@ -195,10 +205,13 @@ export default function Register() {
 
       if (result.success) {
         setShowSuccess(true);
+        toast.success('Email verified! Setting up your dashboard...');
         setTimeout(() => navigate('/dashboard', { replace: true }), 1500);
       }
     } catch (err) {
-      setOtpError(err.response?.data?.message || 'Invalid OTP');
+      const errMsg = err.response?.data?.message || 'Invalid OTP';
+      setOtpError(errMsg);
+      toast.error(errMsg);
     } finally {
       setOtpLoading(false);
     }
@@ -209,8 +222,10 @@ export default function Register() {
     try {
       await authAPI.resendOTP({ userId, type: 'email_verification' });
       startResendCooldown();
+      toast.success('OTP resent successfully!');
     } catch {
       setOtpError('Failed to resend');
+      toast.error('Failed to resend OTP.');
     }
   };
 
@@ -293,26 +308,9 @@ export default function Register() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="mt-10 space-y-4"
+            className="mt-10"
           >
-            {[
-              { icon: Shield, text: 'Secure registration with OTP verification' },
-              { icon: Globe, text: 'Multi-currency accounts setup automatically' },
-              { icon: User, text: 'AI-powered budget categories created for you' },
-            ].map((item, i) => (
-              <motion.div
-                key={item.text}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.5 + i * 0.15 }}
-                className="flex items-center gap-3 text-left"
-              >
-                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <item.icon className="h-4 w-4 text-primary" />
-                </div>
-                <span className="text-sm text-muted-foreground">{item.text}</span>
-              </motion.div>
-            ))}
+            <StackedFinanceCards />
           </motion.div>
         </div>
       </div>
@@ -419,6 +417,35 @@ export default function Register() {
                         <div className="relative flex justify-center">
                           <span className="bg-background px-3 text-xs text-muted-foreground">or register with email</span>
                         </div>
+                      </div>
+
+                      {/* Avatar Upload */}
+                      <div className="flex flex-col items-center gap-3 mb-6">
+                        <div className="relative group">
+                          <div className="h-24 w-24 rounded-full border-2 border-dashed border-primary/30 flex items-center justify-center overflow-hidden bg-muted relative">
+                            {form.avatarPreview ? (
+                              <img src={form.avatarPreview} alt="Avatar" className="h-full w-full object-cover" />
+                            ) : (
+                              <User className="h-10 w-10 text-muted-foreground" />
+                            )}
+                            <label className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                              <span className="text-white text-[10px] font-medium">Upload Image</span>
+                              <input
+                                type="file"
+                                className="hidden"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files[0];
+                                  if (file) {
+                                    updateForm('avatar', file);
+                                    updateForm('avatarPreview', URL.createObjectURL(file));
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">Click to upload your profile picture</p>
                       </div>
 
                       <Input

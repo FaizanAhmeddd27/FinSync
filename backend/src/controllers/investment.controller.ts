@@ -1,4 +1,4 @@
-// src/controllers/investment.controller.ts
+
 import { Request, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase';
 import { asyncHandler } from '../middleware/errorHandler';
@@ -9,7 +9,7 @@ import {
 } from '../utils/errors';
 import { logger } from '../utils/logger';
 
-// ===================== GET ALL INVESTMENTS =====================
+
 export const getInvestments = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -24,7 +24,7 @@ export const getInvestments = asyncHandler(
 
     const items = investments || [];
 
-    // Calculate portfolio summary
+    
     const totalValue = items.reduce((sum, inv) => sum + Number(inv.total_value), 0);
     const totalInvested = items.reduce(
       (sum, inv) => sum + Number(inv.purchase_price) * Number(inv.quantity),
@@ -36,7 +36,7 @@ export const getInvestments = asyncHandler(
         ? Math.round(((totalValue - totalInvested) / totalInvested) * 10000) / 100
         : 0;
 
-    // Group by type
+    
     const byType: Record<string, { count: number; value: number }> = {};
     items.forEach((inv) => {
       if (!byType[inv.investment_type]) {
@@ -71,7 +71,7 @@ export const getInvestments = asyncHandler(
   }
 );
 
-// ===================== GET SINGLE INVESTMENT =====================
+
 export const getInvestmentById = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -94,7 +94,7 @@ export const getInvestmentById = asyncHandler(
   }
 );
 
-// ===================== ADD INVESTMENT =====================
+
 export const addInvestment = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -107,9 +107,11 @@ export const addInvestment = asyncHandler(
       purchase_price,
       current_price,
       currency,
+      risk_category,
+      purchase_date,
     } = req.body;
 
-    // Limit to 50 investments
+    
     const { count } = await supabaseAdmin
       .from('investments')
       .select('*', { count: 'exact', head: true })
@@ -130,6 +132,8 @@ export const addInvestment = asyncHandler(
         purchase_price,
         current_price: current_price || purchase_price,
         currency: currency || req.user.preferred_currency || 'USD',
+        risk_category: risk_category || 'medium',
+        purchase_date: purchase_date || new Date().toISOString(),
       })
       .select()
       .single();
@@ -147,7 +151,7 @@ export const addInvestment = asyncHandler(
   }
 );
 
-// ===================== UPDATE INVESTMENT =====================
+
 export const updateInvestment = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -155,7 +159,7 @@ export const updateInvestment = asyncHandler(
     const { investmentId } = req.params;
     const updateData = req.body;
 
-    // Add last_updated
+    
     updateData.last_updated = new Date().toISOString();
 
     const { data: updated, error } = await supabaseAdmin
@@ -176,7 +180,7 @@ export const updateInvestment = asyncHandler(
   }
 );
 
-// ===================== DELETE INVESTMENT =====================
+
 export const deleteInvestment = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -198,7 +202,7 @@ export const deleteInvestment = asyncHandler(
   }
 );
 
-// ===================== GET PORTFOLIO PERFORMANCE =====================
+
 export const getPortfolioPerformance = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -227,7 +231,7 @@ export const getPortfolioPerformance = asyncHandler(
       });
     }
 
-    // Sort by gain/loss percentage
+    
     const sorted = [...items].sort(
       (a, b) => Number(b.gain_loss_percentage) - Number(a.gain_loss_percentage)
     );
@@ -238,46 +242,52 @@ export const getPortfolioPerformance = asyncHandler(
       .reverse()
       .slice(0, 5);
 
-    // Risk Analysis
+    
     const typeCount = new Set(items.map((i) => i.investment_type)).size;
-    const totalTypes = 5; // stocks, bonds, mutual_funds, crypto, fixed_deposit
+    const totalTypes = 5; 
     const diversificationScore = Math.round((typeCount / totalTypes) * 100);
 
-    let riskLevel: string;
-    const cryptoRatio = items
-      .filter((i) => i.investment_type === 'crypto')
+    const highRiskValue = items
+      .filter((i) => i.risk_category === 'high')
       .reduce((s, i) => s + Number(i.total_value), 0);
-    const totalValue = items.reduce((s, i) => s + Number(i.total_value), 0);
-    const cryptoPercentage = totalValue > 0 ? (cryptoRatio / totalValue) * 100 : 0;
+    const mediumRiskValue = items
+      .filter((i) => i.risk_category === 'medium')
+      .reduce((s, i) => s + Number(i.total_value), 0);
+    const lowRiskValue = items
+      .filter((i) => i.risk_category === 'low')
+      .reduce((s, i) => s + Number(i.total_value), 0);
 
-    if (cryptoPercentage > 50) {
+    const totalValue = highRiskValue + mediumRiskValue + lowRiskValue;
+    const totalInvested = items.reduce(
+      (sum, inv) => sum + Number(inv.purchase_price) * Number(inv.quantity),
+      0
+    );
+    const highRiskPercentage = totalValue > 0 ? (highRiskValue / totalValue) * 100 : 0;
+
+    let riskLevel: string;
+    if (highRiskPercentage > 40) {
       riskLevel = 'high';
-    } else if (cryptoPercentage > 20 || typeCount <= 2) {
+    } else if (highRiskPercentage > 15 || (items.length > 3 && typeCount <= 2)) {
       riskLevel = 'medium';
     } else {
       riskLevel = 'low';
     }
 
-    // Suggestions
+    
     const suggestions: string[] = [];
+    if (highRiskPercentage > 30) {
+      suggestions.push(
+        'Your high-risk allocation is substantial. Consider balancing with low-risk assets.'
+      );
+    }
+    if (lowRiskValue === 0 && items.length > 2) {
+      suggestions.push(
+        'Consider adding low-risk assets like bonds for portfolio stability.'
+      );
+    }
     if (typeCount === 1) {
       suggestions.push(
         'Diversify your portfolio. You only have one type of investment.'
-      );
-    }
-    if (cryptoPercentage > 30) {
-      suggestions.push(
-        'Your crypto allocation is high. Consider balancing with bonds or mutual funds.'
-      );
-    }
-    if (!items.some((i) => i.investment_type === 'bonds')) {
-      suggestions.push(
-        'Consider adding bonds for a more stable, low-risk component.'
-      );
-    }
-    if (!items.some((i) => i.investment_type === 'fixed_deposit')) {
-      suggestions.push(
-        'A fixed deposit can provide guaranteed returns.'
       );
     }
     if (diversificationScore >= 60) {
@@ -286,11 +296,29 @@ export const getPortfolioPerformance = asyncHandler(
       );
     }
 
+    
+    
+    const history = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const month = d.toLocaleString('default', { month: 'short' });
+      
+      const factor = 1 - (i * 0.05); 
+      const marketFactor = factor * (1 + (Math.sin(i) * 0.02)); 
+      history.push({
+        date: month,
+        value: Math.round(totalValue * marketFactor),
+        invested: Math.round(totalInvested * factor),
+      });
+    }
+
     res.status(200).json({
       success: true,
       data: {
         topGainers,
         topLosers,
+        history,
         riskAnalysis: {
           diversificationScore,
           riskLevel,

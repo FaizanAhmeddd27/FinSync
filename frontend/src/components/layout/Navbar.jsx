@@ -5,6 +5,9 @@ import { Menu, X, Landmark } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import ThemeToggle from '@/components/common/ThemeToggle';
 import { cn } from '@/lib/utils';
+import useAuthStore from '@/stores/authStore';
+import { LogOut, LayoutDashboard } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const navLinks = [
   { name: 'Features', href: '#features' },
@@ -15,7 +18,14 @@ const navLinks = [
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { isAuthenticated, logout } = useAuthStore();
   const isLanding = location.pathname === '/';
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
+  };
 
   const scrollTo = (id) => {
     setMobileOpen(false);
@@ -34,8 +44,8 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-              <Landmark className="h-5 w-5 text-primary" />
+            <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors overflow-hidden">
+              <img src="/logo.png" alt="FinSync Logo" className="h-6 w-6 object-contain" />
             </div>
             <span className="text-xl font-bold tracking-tight">
               <span className="text-primary">Fin</span>
@@ -62,12 +72,27 @@ export default function Navbar() {
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <div className="hidden sm:flex items-center gap-2">
-              <Link to="/login">
-                <Button variant="ghost" size="sm">Sign In</Button>
-              </Link>
-              <Link to="/register">
-                <Button variant="glow" size="sm">Open Account</Button>
-              </Link>
+              {isAuthenticated ? (
+                <>
+                  <Link to="/dashboard">
+                    <Button variant="ghost" size="sm" className="gap-2">
+                      <LayoutDashboard className="h-4 w-4" /> Dashboard
+                    </Button>
+                  </Link>
+                  <Button variant="glow" size="sm" onClick={handleLogout} className="gap-2">
+                    <LogOut className="h-4 w-4" /> Logout
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Link to="/login">
+                    <Button variant="ghost" size="sm">Sign In</Button>
+                  </Link>
+                  <Link to="/register">
+                    <Button variant="glow" size="sm">Open Account</Button>
+                  </Link>
+                </>
+              )}
             </div>
 
             {/* Mobile toggle */}
@@ -102,16 +127,31 @@ export default function Navbar() {
                   </button>
                 ))}
               <div className="flex gap-2 pt-2">
-                <Link to="/login" className="flex-1">
-                  <Button variant="outline" className="w-full" size="sm">
-                    Sign In
-                  </Button>
-                </Link>
-                <Link to="/register" className="flex-1">
-                  <Button variant="glow" className="w-full" size="sm">
-                    Open Account
-                  </Button>
-                </Link>
+                {isAuthenticated ? (
+                  <>
+                    <Link to="/dashboard" className="flex-1">
+                      <Button variant="outline" className="w-full gap-2" size="sm">
+                        <LayoutDashboard className="h-4 w-4" /> Dashboard
+                      </Button>
+                    </Link>
+                    <Button variant="glow" className="flex-1 gap-2" size="sm" onClick={handleLogout}>
+                      <LogOut className="h-4 w-4" /> Logout
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Link to="/login" className="flex-1">
+                      <Button variant="outline" className="w-full" size="sm">
+                        Sign In
+                      </Button>
+                    </Link>
+                    <Link to="/register" className="flex-1">
+                      <Button variant="glow" className="w-full" size="sm">
+                        Open Account
+                      </Button>
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </motion.div>

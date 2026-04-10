@@ -1,4 +1,3 @@
-// src/controllers/transaction.controller.ts
 import { Request, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase';
 import { asyncHandler } from '../middleware/errorHandler';
@@ -10,7 +9,6 @@ import {
 import { parsePagination } from '../utils/helpers';
 import { logger } from '../utils/logger';
 
-// GET TRANSACTIONS 
 export const getTransactions = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -32,7 +30,6 @@ export const getTransactions = asyncHandler(
 
     const offset = (Number(page) - 1) * Number(limit);
 
-    // If specific account_id provided, verify ownership
     if (account_id) {
       const { data: account } = await supabaseAdmin
         .from('accounts')
@@ -46,7 +43,6 @@ export const getTransactions = asyncHandler(
       }
     }
 
-    // Get all user's account IDs
     const { data: userAccounts } = await supabaseAdmin
       .from('accounts')
       .select('id')
@@ -71,7 +67,6 @@ export const getTransactions = asyncHandler(
       });
     }
 
-    // Build query
     let query = supabaseAdmin
       .from('ledger')
       .select(
@@ -82,24 +77,20 @@ export const getTransactions = asyncHandler(
         { count: 'exact' }
       );
 
-    // Filter by account
     if (account_id) {
       query = query.eq('account_id', account_id);
     } else {
       query = query.in('account_id', accountIds);
     }
 
-    // Filter by type
     if (type) {
       query = query.eq('type', type);
     }
 
-    // Filter by category
     if (category) {
       query = query.eq('category', category);
     }
 
-    // Filter by date range
     if (start_date) {
       query = query.gte('created_at', start_date);
     }
@@ -107,7 +98,6 @@ export const getTransactions = asyncHandler(
       query = query.lte('created_at', end_date);
     }
 
-    // Filter by amount range
     if (min_amount !== undefined) {
       query = query.gte('amount', Number(min_amount));
     }
@@ -115,16 +105,11 @@ export const getTransactions = asyncHandler(
       query = query.lte('amount', Number(max_amount));
     }
 
-    // Full-text search on description
     if (search) {
       query = query.ilike('description', `%${search}%`);
     }
-
-    // Sorting
     const ascending = sort_order === 'asc';
     query = query.order(sort_by || 'created_at', { ascending });
-
-    // Pagination
     query = query.range(offset, offset + Number(limit) - 1);
 
     const { data: transactions, count, error } = await query;
@@ -155,7 +140,6 @@ export const getTransactions = asyncHandler(
   }
 );
 
-// GET SINGLE TRANSACTION 
 export const getTransactionById = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -177,7 +161,6 @@ export const getTransactionById = asyncHandler(
       throw new NotFoundError('Transaction not found');
     }
 
-    // Verify ownership
     if (
       transaction.account &&
       (transaction.account as any).user_id !== req.user.id
@@ -192,7 +175,6 @@ export const getTransactionById = asyncHandler(
   }
 );
 
-// GET TRANSACTION STATS 
 export const getTransactionStats = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -217,7 +199,6 @@ export const getTransactionStats = asyncHandler(
         startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    // Get user accounts
     const { data: userAccounts } = await supabaseAdmin
       .from('accounts')
       .select('id')
@@ -240,7 +221,6 @@ export const getTransactionStats = asyncHandler(
       });
     }
 
-    // Get all transactions in period
     const { data: transactions } = await supabaseAdmin
       .from('ledger')
       .select('amount, type, category, created_at, currency')
@@ -259,7 +239,6 @@ export const getTransactionStats = asyncHandler(
       .filter((t) => t.type === 'debit')
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
-    // Daily breakdown
     const dailyMap: Record<
       string,
       { income: number; spending: number }
@@ -287,7 +266,6 @@ export const getTransactionStats = asyncHandler(
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // Category breakdown
     const categoryMap: Record<
       string,
       { total: number; count: number }
@@ -334,7 +312,6 @@ export const getTransactionStats = asyncHandler(
   }
 );
 
-// GET RECENT TRANSACTIONS (Dashboard) 
 export const getRecentTransactions = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -344,7 +321,6 @@ export const getRecentTransactions = asyncHandler(
       20
     );
 
-    // Get user accounts
     const { data: userAccounts } = await supabaseAdmin
       .from('accounts')
       .select('id')
@@ -379,14 +355,12 @@ export const getRecentTransactions = asyncHandler(
   }
 );
 
-// EXPORT TRANSACTIONS CSV 
 export const exportTransactionsCSV = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
 
     const { account_id, start_date, end_date } = req.query;
 
-    // Get user accounts
     const { data: userAccounts } = await supabaseAdmin
       .from('accounts')
       .select('id')
@@ -418,7 +392,6 @@ export const exportTransactionsCSV = asyncHandler(
       );
     }
 
-    // Build CSV
     const headers = [
       'Date',
       'Account',
@@ -453,5 +426,145 @@ export const exportTransactionsCSV = asyncHandler(
       `attachment; filename=finsync_transactions_${new Date().toISOString().split('T')[0]}.csv`
     );
     res.send(csv);
+  }
+);
+
+export const createTransaction = asyncHandler(
+  async (req: Request, res: Response) => {
+    if (!req.user) throw new UnauthorizedError();
+    const { account_id, amount, type, category, description } = req.body;
+
+    const { data: account, error: accError } = await supabaseAdmin
+      .from('accounts')
+      .select('balance, currency, user_id')
+      .eq('id', account_id)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (accError || !account) throw new NotFoundError('Account not found');
+
+    const newBalance = type === 'credit' 
+      ? Number(account.balance) + Number(amount)
+      : Number(account.balance) - Number(amount);
+
+    const { error: updateAccError } = await supabaseAdmin
+      .from('accounts')
+      .update({ balance: newBalance })
+      .eq('id', account_id);
+
+    if (updateAccError) throw new BadRequestError('Failed to update balance');
+
+    const { data: transaction, error: ledgerError } = await supabaseAdmin
+      .from('ledger')
+      .insert({
+        account_id,
+        amount,
+        type,
+        category,
+        description: description || `Manual ${type}`,
+        running_balance: newBalance,
+        currency: account.currency
+      })
+      .select()
+      .single();
+
+    if (ledgerError) {
+      await supabaseAdmin.from('accounts').update({ balance: account.balance }).eq('id', account_id);
+      throw new BadRequestError('Failed to record transaction');
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Transaction created successfully',
+      data: { transaction }
+    });
+  }
+);
+
+export const updateTransaction = asyncHandler(
+  async (req: Request, res: Response) => {
+    if (!req.user) throw new UnauthorizedError();
+    const { transactionId } = req.params;
+    const { amount, category, description } = req.body;
+
+    const { data: oldTxn, error: oldError } = await supabaseAdmin
+      .from('ledger')
+      .select('*, account:accounts(user_id, balance)')
+      .eq('id', transactionId)
+      .single();
+
+    if (oldError || !oldTxn) throw new NotFoundError('Transaction not found');
+    if ((oldTxn.account as any).user_id !== req.user.id) throw new UnauthorizedError();
+
+    let newBalance = Number((oldTxn.account as any).balance);
+
+    if (amount !== undefined && Number(amount) !== Number(oldTxn.amount)) {
+      const diff = Number(amount) - Number(oldTxn.amount);
+      newBalance = oldTxn.type === 'credit' 
+        ? newBalance + diff 
+        : newBalance - diff;
+
+      await supabaseAdmin
+        .from('accounts')
+        .update({ balance: newBalance })
+        .eq('id', oldTxn.account_id);
+    }
+
+    const { data: updated, error: updateError } = await supabaseAdmin
+      .from('ledger')
+      .update({
+        amount: amount ?? oldTxn.amount,
+        category: category ?? oldTxn.category,
+        description: description ?? oldTxn.description,
+        running_balance: newBalance
+      })
+      .eq('id', transactionId)
+      .select()
+      .single();
+
+    if (updateError) throw new BadRequestError('Failed to update transaction');
+
+    res.status(200).json({
+      success: true,
+      message: 'Transaction updated successfully',
+      data: { transaction: updated }
+    });
+  }
+);
+
+export const deleteTransaction = asyncHandler(
+  async (req: Request, res: Response) => {
+    if (!req.user) throw new UnauthorizedError();
+    const { transactionId } = req.params;
+
+    const { data: txn, error: getError } = await supabaseAdmin
+      .from('ledger')
+      .select('*, account:accounts(user_id, balance)')
+      .eq('id', transactionId)
+      .single();
+
+    if (getError || !txn) throw new NotFoundError('Transaction not found');
+    if ((txn.account as any).user_id !== req.user.id) throw new UnauthorizedError();
+
+    const reverseAmount = txn.type === 'credit' 
+      ? Number((txn.account as any).balance) - Number(txn.amount)
+      : Number((txn.account as any).balance) + Number(txn.amount);
+
+    await supabaseAdmin
+      .from('accounts')
+      .update({ balance: reverseAmount })
+      .eq('id', txn.account_id);
+
+    const { error: deleteError } = await supabaseAdmin
+      .from('ledger')
+      .delete()
+      .eq('id', transactionId);
+
+    if (deleteError) throw new BadRequestError('Failed to delete transaction');
+
+    res.status(200).json({
+      success: true,
+      message: 'Transaction deleted and balance adjusted'
+    });
   }
 );

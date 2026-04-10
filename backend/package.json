@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only --exit-child src/index.ts",
     "build": "tsc",
+    "build:render": "npm install && npm run build",
     "start": "node dist/index.js",
+    "start:prod": "NODE_ENV=production node dist/index.js",
     "db:migrate": "ts-node src/database/migrate.ts",
     "db:seed": "ts-node src/database/seed.ts",
     "lint": "eslint src --ext .ts",
@@ -28,6 +30,7 @@
   "license": "MIT",
   "dependencies": {
     "@supabase/supabase-js": "^2.99.0",
+    "@types/qrcode": "^1.5.6",
     "@upstash/redis": "^1.36.4",
     "axios": "^1.13.6",
     "bcryptjs": "^3.0.3",
@@ -45,13 +48,14 @@
     "morgan": "^1.10.1",
     "multer": "^2.1.1",
     "node-cron": "^4.2.1",
+    "nodemailer": "^8.0.2",
     "passport": "^0.7.0",
     "passport-github2": "^0.1.12",
     "passport-google-oauth20": "^2.0.0",
     "passport-local": "^1.0.0",
     "pdfkit": "^0.17.2",
     "pg": "^8.20.0",
-    "resend": "^6.9.3",
+    "qrcode": "^1.5.4",
     "socket.io": "^4.8.3",
     "twilio": "^5.12.2",
     "uuid": "^13.0.0",
@@ -71,6 +75,7 @@
     "@types/multer": "^2.1.0",
     "@types/node": "^25.4.0",
     "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^7.0.11",
     "@types/passport": "^1.0.17",
     "@types/passport-github2": "^1.2.9",
     "@types/passport-google-oauth20": "^2.0.17",
@@ -90,9 +95,7 @@
     "typescript": "^5.9.3"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=9.0.0"
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
   }
- 
-  
 }

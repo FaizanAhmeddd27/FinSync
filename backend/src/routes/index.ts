@@ -12,6 +12,8 @@ import budgetRoutes from './budget.routes';
 import investmentRoutes from './investment.routes';
 import chatbotRoutes from './chatbot.routes';
 import dashboardRoutes from './dashboard.routes';
+import searchRoutes from './search.routes';
+import qrRoutes from './qr.routes';
 
 const router = Router();
 
@@ -28,5 +30,7 @@ router.use('/budget', budgetRoutes);
 router.use('/investments', investmentRoutes);
 router.use('/chatbot', chatbotRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/search', searchRoutes);
+router.use('/qr', qrRoutes);
 
 export default router;

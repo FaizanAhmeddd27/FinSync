@@ -1,7 +1,7 @@
 import rateLimit from 'express-rate-limit';
 import { env } from '../config/env';
 
-// General API rate limiter
+
 export const generalLimiter = rateLimit({
   windowMs: env.RATE_LIMIT_WINDOW_MS,
   max: env.RATE_LIMIT_MAX_REQUESTS,
@@ -14,9 +14,9 @@ export const generalLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Strict limiter for auth endpoints
+
 export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000, 
   max: 10,
   message: {
     success: false,
@@ -27,9 +27,9 @@ export const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// OTP limiter
+
 export const otpLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
+  windowMs: 5 * 60 * 1000, 
   max: 5,
   message: {
     success: false,
@@ -40,9 +40,9 @@ export const otpLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Transfer limiter
+
 export const transferLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
+  windowMs: 60 * 60 * 1000, 
   max: 20,
   message: {
     success: false,

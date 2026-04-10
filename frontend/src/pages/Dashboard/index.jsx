@@ -16,6 +16,7 @@ import Badge from '@/components/ui/Badge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import FadeInView from '@/components/animations/FadeInView';
 import AnimatedCounter from '@/components/animations/AnimatedCounter';
+import HeatmapCalendar from '@/components/dashboard/HeatmapCalendar';
 import { dashboardAPI } from '@/lib/api';
 import useAuthStore from '@/stores/authStore';
 import { formatCurrency, maskAccountNumber, timeAgo, cn } from '@/lib/utils';
@@ -169,17 +170,29 @@ export default function Dashboard() {
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
+  const [heatmapData, setHeatmapData] = useState([]);
+  const [heatmapInsights, setHeatmapInsights] = useState(null);
+  const [heatmapLoading, setHeatmapLoading] = useState(true);
+
   const preferredCurrency = user?.preferred_currency || 'USD';
 
   const fetchDashboard = async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
     try {
-      const { data: res } = await dashboardAPI.get();
+      const [{ data: res }, { data: heatmapRes }] = await Promise.all([
+        dashboardAPI.get(),
+        dashboardAPI.getHeatmap().catch(() => ({ data: { success: false } }))
+      ]);
       if (res.success) setData(res.data);
+      if (heatmapRes.success) {
+        setHeatmapData(heatmapRes.data.heatmap);
+        setHeatmapInsights(heatmapRes.data.insights);
+      }
     } catch (err) {
       setError('Failed to load dashboard');
     } finally {
       setLoading(false);
+      setHeatmapLoading(false);
       setRefreshing(false);
     }
   };
@@ -299,10 +312,10 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="h-[280px] w-full">
+              <div className="h-[280px] w-full mt-4">
                 {balanceHistory && balanceHistory.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={balanceHistory}>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <AreaChart data={balanceHistory} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#1c9cf0" stopOpacity={0.2} />
@@ -384,6 +397,16 @@ export default function Dashboard() {
           </Card>
         </FadeInView>
       </div>
+
+      {/* HEATMAP CALENDAR STRIP */}
+      <FadeInView delay={0.4}>
+        <HeatmapCalendar 
+          data={heatmapData} 
+          insights={heatmapInsights} 
+          loading={heatmapLoading} 
+          currency={preferredCurrency} 
+        />
+      </FadeInView>
 
       {/* Quick Actions + Accounts */}
       <div className="grid lg:grid-cols-3 gap-6">

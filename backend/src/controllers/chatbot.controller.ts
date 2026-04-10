@@ -5,7 +5,6 @@ import { BadRequestError, NotFoundError, UnauthorizedError } from '../utils/erro
 import { AIService } from '../services/ai.service';
 import { logger } from '../utils/logger';
 
-// SEND MESSAGE 
 export const sendMessage = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) throw new UnauthorizedError();
 
@@ -22,7 +21,6 @@ export const sendMessage = asyncHandler(async (req: Request, res: Response) => {
   let sessionId = session_id;
   let conversationHistory: Array<{ role: string; content: string }> = [];
 
-  // Get or create chat session
   if (sessionId) {
     const { data: session } = await supabaseAdmin
       .from('chat_sessions')
@@ -55,14 +53,12 @@ export const sendMessage = asyncHandler(async (req: Request, res: Response) => {
     sessionId = newSession.id;
   }
 
-  // Generate AI response
   const aiResponse = await AIService.chat(
     req.user.id,
     message.trim(),
     conversationHistory
   );
 
-  // Update conversation history
   const newMessages = [
     ...conversationHistory,
     {
@@ -77,7 +73,6 @@ export const sendMessage = asyncHandler(async (req: Request, res: Response) => {
     },
   ];
 
-  // Keep only last 50 messages per session
   const trimmedMessages = newMessages.slice(-50);
 
   await supabaseAdmin
@@ -98,7 +93,6 @@ export const sendMessage = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
-// GET CHAT HISTORY 
 export const getChatHistory = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -126,7 +120,6 @@ export const getChatHistory = asyncHandler(
   }
 );
 
-// GET ALL CHAT SESSIONS 
 export const getChatSessions = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -138,7 +131,6 @@ export const getChatSessions = asyncHandler(
       .order('updated_at', { ascending: false })
       .limit(20);
 
-    // Return sessions with preview (first message)
     const sessionPreviews = (sessions || []).map((s) => {
       const msgs = (s.messages as any[]) || [];
       const firstUserMsg = msgs.find((m) => m.role === 'user');
@@ -158,7 +150,6 @@ export const getChatSessions = asyncHandler(
   }
 );
 
-// DELETE CHAT SESSION 
 export const deleteChatSession = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -178,7 +169,6 @@ export const deleteChatSession = asyncHandler(
   }
 );
 
-// GET QUICK SUGGESTIONS
 export const getQuickSuggestions = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();

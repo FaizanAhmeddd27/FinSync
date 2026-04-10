@@ -12,11 +12,11 @@ export const validate = (schema: ZodSchema, source: 'body' | 'query' | 'params' 
       }));
       next(new ValidationError('Validation failed', formattedErrors));
     } else {
-      // Only assign to req.body (writable). req.query and req.params are read-only getters.
+      
       if (source === 'body') {
         req.body = result.data;
       }
-      // For query/params, validation is sufficient - Express already parsed them correctly
+      
       next();
     }
   };

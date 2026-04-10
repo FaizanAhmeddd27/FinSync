@@ -25,6 +25,8 @@ export const createInvestmentSchema = z.object({
   currency: z
     .enum(['USD', 'EUR', 'GBP', 'INR', 'PKR', 'AED', 'CAD', 'AUD'])
     .default('USD'),
+  risk_category: z.enum(['low', 'medium', 'high']).default('medium'),
+  purchase_date: z.string().datetime().optional().or(z.string().optional()),
 });
 
 export const updateInvestmentSchema = z.object({
@@ -32,6 +34,8 @@ export const updateInvestmentSchema = z.object({
   quantity: z.number().positive().optional(),
   current_price: z.number().min(0).optional(),
   purchase_price: z.number().min(0).optional(),
+  risk_category: z.enum(['low', 'medium', 'high']).optional(),
+  purchase_date: z.string().datetime().optional().or(z.string().optional()),
 });
 
 export type CreateInvestmentInput = z.infer<typeof createInvestmentSchema>;

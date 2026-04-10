@@ -11,47 +11,47 @@ import { parsePagination, sanitizeUser } from '../utils/helpers';
 import { redisHelpers } from '../config/redis';
 import { logger } from '../utils/logger';
 
-// DASHBOARD STATS 
+
 export const getDashboardStats = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user || req.user.role !== 'admin') throw new ForbiddenError();
 
-    // Try cache first
+    
     const cached = await redisHelpers.getCache<any>('admin:dashboard_stats');
     if (cached) {
       return res.status(200).json({ success: true, data: cached });
     }
 
-    // Total users
+    
     const { count: totalUsers } = await supabaseAdmin
       .from('users')
       .select('*', { count: 'exact', head: true });
 
-    // Active users
+    
     const { count: activeUsers } = await supabaseAdmin
       .from('users')
       .select('*', { count: 'exact', head: true })
       .eq('is_active', true);
 
-    // New users (last 30 days)
+    
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
     const { count: newUsers30d } = await supabaseAdmin
       .from('users')
       .select('*', { count: 'exact', head: true })
       .gte('created_at', thirtyDaysAgo);
 
-    // Total accounts
+    
     const { count: totalAccounts } = await supabaseAdmin
       .from('accounts')
       .select('*', { count: 'exact', head: true });
 
-    // Active accounts
+    
     const { count: activeAccounts } = await supabaseAdmin
       .from('accounts')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'active');
 
-    // Total money across all accounts
+    
     const { data: moneyData } = await supabaseAdmin
       .from('accounts')
       .select('balance, currency')
@@ -64,44 +64,44 @@ export const getDashboardStats = asyncHandler(
         (totalMoneyByCurrency[currency] || 0) + Number(acc.balance);
     });
 
-    // Total transactions
+    
     const { count: totalTransactions } = await supabaseAdmin
       .from('ledger')
       .select('*', { count: 'exact', head: true });
 
-    // Transactions last 24 hours
+    
     const oneDayAgo = new Date(Date.now() - 86400000).toISOString();
     const { count: transactions24h } = await supabaseAdmin
       .from('ledger')
       .select('*', { count: 'exact', head: true })
       .gte('created_at', oneDayAgo);
 
-    // Pending fraud alerts
+    
     const { count: pendingFraudAlerts } = await supabaseAdmin
       .from('fraud_alerts')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'pending');
 
-    // Critical fraud alerts
+    
     const { count: criticalAlerts } = await supabaseAdmin
       .from('fraud_alerts')
       .select('*', { count: 'exact', head: true })
       .eq('severity', 'critical')
       .eq('status', 'pending');
 
-    // KYC pending
+    
     const { count: kycPending } = await supabaseAdmin
       .from('users')
       .select('*', { count: 'exact', head: true })
       .eq('kyc_status', 'pending');
 
-    // Frozen accounts
+    
     const { count: frozenAccounts } = await supabaseAdmin
       .from('accounts')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'frozen');
 
-    // Daily transaction volume (last 7 days)
+    
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
     const { data: dailyVolume } = await supabaseAdmin
       .from('ledger')
@@ -133,14 +133,14 @@ export const getDashboardStats = asyncHandler(
       dailyStats.set(date, existing);
     });
 
-    // Recent registrations (last 5)
+    
     const { data: recentUsers } = await supabaseAdmin
       .from('users')
       .select('id, name, email, created_at, kyc_status, provider')
       .order('created_at', { ascending: false })
       .limit(5);
 
-    // Top users by balance
+    
     const { data: topAccounts } = await supabaseAdmin
       .from('accounts')
       .select(`
@@ -184,14 +184,14 @@ export const getDashboardStats = asyncHandler(
       },
     };
 
-    // Cache for 5 minutes
+    
     await redisHelpers.setCache('admin:dashboard_stats', result, 300);
 
     res.status(200).json({ success: true, data: result });
   }
 );
 
-// GET ALL USERS 
+
 export const getUsers = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user || req.user.role !== 'admin') throw new ForbiddenError();
 
@@ -219,7 +219,7 @@ export const getUsers = asyncHandler(async (req: Request, res: Response) => {
   }
   if (role) query = query.eq('role', role);
   if (kyc_status) query = query.eq('kyc_status', kyc_status);
-  if (is_active !== undefined) query = query.eq('is_active', is_active === 'true');
+  if (is_active !== undefined && is_active !== '') query = query.eq('is_active', is_active === 'true');
 
   const { data: users, count, error } = await query;
 
@@ -244,7 +244,7 @@ export const getUsers = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
-//  GET USER DETAIL 
+
 export const getUserDetail = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user || req.user.role !== 'admin') throw new ForbiddenError();
@@ -259,14 +259,14 @@ export const getUserDetail = asyncHandler(
 
     if (error || !user) throw new NotFoundError('User not found');
 
-    // Get user's accounts
+    
     const { data: accounts } = await supabaseAdmin
       .from('accounts')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: true });
 
-    // Get login attempts (last 10)
+    
     const { data: loginAttempts } = await supabaseAdmin
       .from('login_attempts')
       .select('*')
@@ -274,7 +274,7 @@ export const getUserDetail = asyncHandler(
       .order('attempted_at', { ascending: false })
       .limit(10);
 
-    // Get fraud alerts
+    
     const { data: fraudAlerts } = await supabaseAdmin
       .from('fraud_alerts')
       .select('*')
@@ -282,7 +282,7 @@ export const getUserDetail = asyncHandler(
       .order('created_at', { ascending: false })
       .limit(10);
 
-    // Get recent transactions
+    
     const accountIds = (accounts || []).map((a) => a.id);
     let recentTransactions: any[] = [];
 
@@ -296,7 +296,7 @@ export const getUserDetail = asyncHandler(
       recentTransactions = txns || [];
     }
 
-    // Transaction stats
+    
     const totalBalance = (accounts || [])
       .filter((a) => a.status === 'active')
       .reduce((sum, a) => sum + Number(a.balance), 0);
@@ -315,14 +315,14 @@ export const getUserDetail = asyncHandler(
   }
 );
 
-//  UPDATE USER (Admin) 
+
 export const updateUser = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user || req.user.role !== 'admin') throw new ForbiddenError();
 
   const { userId } = req.params;
   const { role, kyc_status, is_active } = req.body;
 
-  // Prevent admin from demoting themselves
+  
   if (userId === req.user.id && role === 'user') {
     throw new BadRequestError('Cannot demote yourself');
   }
@@ -345,7 +345,7 @@ export const updateUser = asyncHandler(async (req: Request, res: Response) => {
 
   if (error || !updated) throw new NotFoundError('User not found');
 
-  // Notify user of changes
+  
   const messages: string[] = [];
   if (kyc_status === 'verified') messages.push('Your KYC has been verified! ✅');
   if (kyc_status === 'rejected') messages.push('Your KYC was rejected. Please resubmit.');
@@ -361,7 +361,7 @@ export const updateUser = asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  // Audit log
+  
   await supabaseAdmin.from('audit_log').insert({
     user_id: req.user.id,
     action: 'ADMIN_UPDATE_USER',
@@ -372,7 +372,7 @@ export const updateUser = asyncHandler(async (req: Request, res: Response) => {
     user_agent: req.get('user-agent'),
   });
 
-  // Invalidate cache
+  
   await redisHelpers.invalidateCache('admin:dashboard_stats');
 
   res.status(200).json({
@@ -382,7 +382,7 @@ export const updateUser = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
-// MANAGE ACCOUNT (Freeze/Unfreeze/Close) 
+
 export const manageAccount = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user || req.user.role !== 'admin') throw new ForbiddenError();
@@ -440,7 +440,7 @@ export const manageAccount = asyncHandler(
         throw new BadRequestError('Invalid action');
     }
 
-    // Notify user
+    
     const userId = (account as any).users?.id;
     if (userId) {
       await supabaseAdmin.from('notifications').insert({
@@ -452,7 +452,7 @@ export const manageAccount = asyncHandler(
       });
     }
 
-    // Audit log
+    
     await supabaseAdmin.from('audit_log').insert({
       user_id: req.user.id,
       action: `ADMIN_${action.toUpperCase()}_ACCOUNT`,
@@ -472,7 +472,7 @@ export const manageAccount = asyncHandler(
   }
 );
 
-// GET AUDIT LOGS 
+
 export const getAuditLogs = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user || req.user.role !== 'admin') throw new ForbiddenError();
@@ -520,28 +520,28 @@ export const getAuditLogs = asyncHandler(
   }
 );
 
-//  GET SYSTEM HEALTH 
+
 export const getSystemHealth = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user || req.user.role !== 'admin') throw new ForbiddenError();
 
     const startTime = Date.now();
 
-    // Test database query time
+    
     const dbStart = Date.now();
     await supabaseAdmin.from('users').select('count').limit(0);
     const dbLatency = Date.now() - dbStart;
 
-    // Test Redis
+    
     const redisStart = Date.now();
     const { redis } = await import('../config/redis');
     await redis.ping();
     const redisLatency = Date.now() - redisStart;
 
-    // Memory usage
+    
     const memoryUsage = process.memoryUsage();
 
-    // Uptime
+    
     const uptime = process.uptime();
 
     res.status(200).json({
@@ -572,15 +572,15 @@ export const getSystemHealth = asyncHandler(
   }
 );
 
-// GET ANALYTICS 
+
 export const getAnalytics = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user || req.user.role !== 'admin') throw new ForbiddenError();
 
-    const period = parseInt(req.query.period as string) || 30; // days
+    const period = parseInt(req.query.period as string) || 30; 
     const startDate = new Date(Date.now() - period * 86400000).toISOString();
 
-    // User registrations over time
+    
     const { data: registrations } = await supabaseAdmin
       .from('users')
       .select('created_at, provider')
@@ -596,7 +596,7 @@ export const getAnalytics = asyncHandler(
       regByDay.set(date, existing);
     });
 
-    // Transaction volume over time
+    
     const { data: txnVolume } = await supabaseAdmin
       .from('ledger')
       .select('amount, type, created_at')
@@ -613,7 +613,7 @@ export const getAnalytics = asyncHandler(
       volumeByDay.set(date, existing);
     });
 
-    // Fraud alerts distribution
+    
     const { data: fraudStats } = await supabaseAdmin
       .from('fraud_alerts')
       .select('alert_type, severity, status')
@@ -626,7 +626,7 @@ export const getAnalytics = asyncHandler(
       fraudBySeverity[f.severity] = (fraudBySeverity[f.severity] || 0) + 1;
     });
 
-    // Top spending categories (across all users)
+    
     const { data: categoryData } = await supabaseAdmin
       .from('ledger')
       .select('category, amount')

@@ -3,6 +3,7 @@ import { Activity, Database, Cpu, Clock } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { adminAPI } from '@/lib/api';
+import { toast } from 'sonner';
 
 export default function SystemHealth() {
   const [health, setHealth] = useState(null);
@@ -12,7 +13,10 @@ export default function SystemHealth() {
     adminAPI.getHealth().then(({ data }) => {
       if (data.success) setHealth(data.data);
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch((err) => {
+      toast.error('Failed to check system health');
+      setLoading(false);
+    });
   }, []);
 
   if (loading) return <LoadingSpinner fullScreen />;
@@ -41,7 +45,7 @@ export default function SystemHealth() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">System Health</h1>
       
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <HealthCard 
           icon={Clock} 
           title="System Uptime" 
@@ -75,12 +79,12 @@ export default function SystemHealth() {
       <Card>
         <CardHeader><CardTitle>Server Info</CardTitle></CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            <div className="flex justify-between sm:justify-start">
               <span className="text-muted-foreground">Node Version:</span>
               <span className="ml-2 font-mono">{health.nodeVersion}</span>
             </div>
-            <div>
+            <div className="flex justify-between sm:justify-start">
               <span className="text-muted-foreground">Environment:</span>
               <span className="ml-2 font-mono capitalize">{health.environment}</span>
             </div>

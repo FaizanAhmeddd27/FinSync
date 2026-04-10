@@ -1,4 +1,3 @@
-// ============== USER ==============
 export interface User {
   id: string;
   email: string;
@@ -41,7 +40,7 @@ export interface UserPublic {
   created_at: string;
 }
 
-// ============== ACCOUNT ==============
+
 export interface Account {
   id: string;
   user_id: string;
@@ -55,7 +54,7 @@ export interface Account {
   updated_at: string;
 }
 
-// ============== LEDGER ==============
+
 export interface LedgerEntry {
   id: string;
   account_id: string;
@@ -70,7 +69,7 @@ export interface LedgerEntry {
   created_at: string;
 }
 
-// ============== TRANSFER ==============
+
 export interface Transfer {
   id: string;
   from_account_id: string;
@@ -90,7 +89,7 @@ export interface Transfer {
   created_at: string;
 }
 
-// ============== FRAUD ==============
+
 export interface FraudAlert {
   id: string;
   ledger_id: string | null;
@@ -105,7 +104,7 @@ export interface FraudAlert {
   created_at: string;
 }
 
-// ============== AUDIT ==============
+
 export interface AuditLog {
   id: string;
   user_id: string | null;
@@ -119,7 +118,7 @@ export interface AuditLog {
   created_at: string;
 }
 
-// ============== BUDGET ==============
+
 export interface BudgetCategory {
   id: string;
   user_id: string;
@@ -132,7 +131,7 @@ export interface BudgetCategory {
   created_at: string;
 }
 
-// ============== INVESTMENTS ==============
+
 export interface Investment {
   id: string;
   user_id: string;
@@ -150,7 +149,7 @@ export interface Investment {
   created_at: string;
 }
 
-// ============== NOTIFICATIONS ==============
+
 export interface Notification {
   id: string;
   user_id: string;
@@ -162,7 +161,7 @@ export interface Notification {
   created_at: string;
 }
 
-// ============== LOGIN ATTEMPTS ==============
+
 export interface LoginAttempt {
   id: string;
   user_id: string | null;
@@ -174,7 +173,7 @@ export interface LoginAttempt {
   attempted_at: string;
 }
 
-// ============== OTP ==============
+
 export interface OTPRecord {
   id: string;
   user_id: string;
@@ -185,7 +184,7 @@ export interface OTPRecord {
   created_at: string;
 }
 
-// ============== API RESPONSES ==============
+
 export interface ApiResponse<T = any> {
   success: boolean;
   message: string;
@@ -203,7 +202,7 @@ export interface PaginationMeta {
   hasPrevious: boolean;
 }
 
-// ============== AUTH ==============
+
 export interface TokenPayload {
   userId: string;
   email: string;
@@ -230,7 +229,7 @@ export interface LoginInput {
   password: string;
 }
 
-// ============== CHATBOT ==============
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
