@@ -18,7 +18,7 @@ import { EmailService } from '../services/email.service';
 import { redisHelpers } from '../config/redis';
 import { logger } from '../utils/logger';
 
-// VERIFY RECIPIENT 
+
 export const verifyRecipient = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -45,14 +45,14 @@ export const verifyRecipient = asyncHandler(
       throw new NotFoundError('Recipient account not found or is inactive');
     }
 
-    // Get recipient name
+    
     const { data: recipientUser } = await supabaseAdmin
       .from('users')
       .select('name, avatar_url')
       .eq('id', recipientAccount.user_id)
       .single();
 
-    // Check if user is trying to send to their own account
+    
     const isSelfTransfer = recipientAccount.user_id === req.user.id;
 
     res.status(200).json({
@@ -74,7 +74,7 @@ export const verifyRecipient = asyncHandler(
   }
 );
 
-// INITIATE TRANSFER (sends OTP) 
+
 export const initiateTransfer = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -82,7 +82,7 @@ export const initiateTransfer = asyncHandler(
     const { from_account_id, to_account_number, amount, note, category } =
       req.body;
 
-    // 1. Validate source account (ownership + active + sufficient balance)
+    
     const { data: fromAccount } = await supabaseAdmin
       .from('accounts')
       .select('*')
@@ -103,7 +103,7 @@ export const initiateTransfer = asyncHandler(
       );
     }
 
-    // 2. Validate destination account
+    
     const { data: toAccount } = await supabaseAdmin
       .from('accounts')
       .select('*')
@@ -121,7 +121,7 @@ export const initiateTransfer = asyncHandler(
       throw new BadRequestError('Cannot transfer to the same account');
     }
 
-    // 3. Calculate currency conversion if needed
+    
     const { convertedAmount, exchangeRate } =
       await CurrencyService.convert(
         amount,
@@ -129,7 +129,7 @@ export const initiateTransfer = asyncHandler(
         toAccount.currency
       );
 
-    // 4. Fraud check
+    
     const fraudCheck = await FraudService.checkTransaction(
       req.user.id,
       from_account_id,
@@ -137,7 +137,7 @@ export const initiateTransfer = asyncHandler(
       fromAccount.currency
     );
 
-    // If critical risk, block immediately
+    
     if (fraudCheck.riskScore >= 80) {
       await FraudService.createAlerts(
         req.user.id,
@@ -151,7 +151,7 @@ export const initiateTransfer = asyncHandler(
       );
     }
 
-    // 5. Create pending transfer record
+    
     const referenceId = generateReferenceId();
 
     const { data: transfer, error } = await supabaseAdmin
@@ -176,7 +176,7 @@ export const initiateTransfer = asyncHandler(
       throw new BadRequestError('Failed to initiate transfer');
     }
 
-    // 6. Store transfer details in Redis for quick OTP verification
+    
     await redisHelpers.setCache(
       `transfer:${transfer.id}`,
       {
@@ -195,10 +195,10 @@ export const initiateTransfer = asyncHandler(
         fraudAlerts: fraudCheck.alerts,
         riskScore: fraudCheck.riskScore,
       },
-      600 // 10 min expiry
+      600 
     );
 
-    // 7. Generate and send OTP
+    
     const otp = await OTPService.generateAndStore(
       req.user.id,
       'transfer'
@@ -210,7 +210,7 @@ export const initiateTransfer = asyncHandler(
       'transfer confirmation'
     );
 
-    // 8. Get recipient info for response
+    
     const { data: recipientUser } = await supabaseAdmin
       .from('users')
       .select('name')
@@ -252,14 +252,14 @@ export const initiateTransfer = asyncHandler(
   }
 );
 
-// CONFIRM TRANSFER (with OTP) 
+
 export const confirmTransfer = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
 
     const { transfer_id, otp } = req.body;
 
-    // 1. Verify OTP
+    
     const isOTPValid = await OTPService.verify(
       req.user.id,
       otp,
@@ -269,7 +269,7 @@ export const confirmTransfer = asyncHandler(
       throw new BadRequestError('Invalid or expired OTP');
     }
 
-    // 2. Get transfer details from Redis
+    
     const transferData = await redisHelpers.getCache<any>(
       `transfer:${transfer_id}`
     );
@@ -280,12 +280,12 @@ export const confirmTransfer = asyncHandler(
       );
     }
 
-    // 3. Verify ownership
+    
     if (transferData.userId !== req.user.id) {
       throw new ForbiddenError('Unauthorized transfer');
     }
 
-    // 4. Verify transfer is still pending
+    
     const { data: transfer } = await supabaseAdmin
       .from('transfers')
       .select('status')
@@ -298,7 +298,7 @@ export const confirmTransfer = asyncHandler(
       );
     }
 
-    // 5. Execute transfer via stored procedure (ACID)
+    
     const { data: executedTransferId, error } = await supabaseAdmin.rpc(
       'execute_transfer',
       {
@@ -311,13 +311,14 @@ export const confirmTransfer = asyncHandler(
         p_converted_amount: transferData.convertedAmount,
         p_note: transferData.note,
         p_reference_id: transferData.referenceId,
+        p_category: transferData.category,
       }
     );
 
     if (error) {
       logger.error('Transfer execution error:', error);
 
-      // Update transfer status to failed
+      
       await supabaseAdmin
         .from('transfers')
         .update({ status: 'failed' })
@@ -328,13 +329,13 @@ export const confirmTransfer = asyncHandler(
       );
     }
 
-    // 6. Update original transfer record
+    
     await supabaseAdmin
       .from('transfers')
       .update({ status: 'completed', otp_verified: true })
       .eq('id', transfer_id);
 
-    // 7. Create fraud alerts if there were warnings
+    
     if (
       transferData.fraudAlerts &&
       transferData.fraudAlerts.length > 0
@@ -347,8 +348,8 @@ export const confirmTransfer = asyncHandler(
       );
     }
 
-    // 8. Send email notifications to both parties
-    // Sender notification
+    
+    
     const { data: fromAccount } = await supabaseAdmin
       .from('accounts')
       .select('balance, account_number')
@@ -367,7 +368,7 @@ export const confirmTransfer = asyncHandler(
       );
     }
 
-    // Recipient notification
+    
     const { data: toAccount } = await supabaseAdmin
       .from('accounts')
       .select('balance, user_id')
@@ -394,10 +395,10 @@ export const confirmTransfer = asyncHandler(
       }
     }
 
-    // 9. Clean up Redis
+    
     await redisHelpers.invalidateCache(`transfer:${transfer_id}`);
 
-    // 10. Audit log
+    
     await supabaseAdmin.from('audit_log').insert({
       user_id: req.user.id,
       action: 'TRANSFER_COMPLETED',
@@ -434,7 +435,7 @@ export const confirmTransfer = asyncHandler(
   }
 );
 
-// CANCEL TRANSFER 
+
 export const cancelTransfer = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -449,7 +450,7 @@ export const cancelTransfer = asyncHandler(
 
     if (!transfer) throw new NotFoundError('Transfer not found');
 
-    // Verify ownership through from_account
+    
     const { data: fromAccount } = await supabaseAdmin
       .from('accounts')
       .select('user_id')
@@ -478,7 +479,7 @@ export const cancelTransfer = asyncHandler(
   }
 );
 
-// GET TRANSFER HISTORY 
+
 export const getTransferHistory = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -491,7 +492,7 @@ export const getTransferHistory = asyncHandler(
     const offset = (page - 1) * limit;
     const status = req.query.status as string;
 
-    // Get all user's account IDs
+    
     const { data: userAccounts } = await supabaseAdmin
       .from('accounts')
       .select('id')
@@ -506,7 +507,7 @@ export const getTransferHistory = asyncHandler(
       });
     }
 
-    // Build query
+    
       const idsStr = accountIds.join(',');
     let query = supabaseAdmin
       .from('transfers')
@@ -547,7 +548,7 @@ export const getTransferHistory = asyncHandler(
   }
 );
 
-//SCHEDULE TRANSFER
+
 export const scheduleTransfer = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -562,7 +563,7 @@ export const scheduleTransfer = asyncHandler(
       recurrence_pattern,
     } = req.body;
 
-    // Validate source account
+    
     const { data: fromAccount } = await supabaseAdmin
       .from('accounts')
       .select('*')
@@ -575,7 +576,7 @@ export const scheduleTransfer = asyncHandler(
       throw new NotFoundError('Source account not found');
     }
 
-    // Validate destination
+    
     const { data: toAccount } = await supabaseAdmin
       .from('accounts')
       .select('id, currency')
@@ -587,7 +588,7 @@ export const scheduleTransfer = asyncHandler(
       throw new NotFoundError('Destination account not found');
     }
 
-    // Validate scheduled date is in the future
+    
     if (new Date(scheduled_at) <= new Date()) {
       throw new BadRequestError(
         'Scheduled date must be in the future'

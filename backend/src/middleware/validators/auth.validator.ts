@@ -79,9 +79,26 @@ export const resendOTPSchema = z.object({
   type: z.enum(['email_verification', 'phone_verification', 'login_2fa', 'transfer']),
 });
 
+export const updateProfileSchema = z.object({
+  name: z
+    .string()
+    .min(2, 'Name must be at least 2 characters')
+    .max(100, 'Name must be less than 100 characters')
+    .trim()
+    .optional(),
+  phone: z
+    .string()
+    .regex(/^\+?[1-9]\d{7,14}$/, 'Invalid phone number')
+    .optional(),
+  language: z
+    .enum(['en', 'ur'])
+    .optional(),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type VerifyOTPInput = z.infer<typeof verifyOTPSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type ResendOTPInput = z.infer<typeof resendOTPSchema>;
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;

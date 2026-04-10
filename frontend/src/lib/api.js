@@ -5,12 +5,8 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const api = axios.create({
   baseURL: API_URL,
   withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 
-// Request interceptor — attach token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken');
@@ -22,7 +18,6 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor — handle token refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -59,7 +54,6 @@ api.interceptors.response.use(
 
 export default api;
 
-// API endpoint helpers
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
@@ -70,11 +64,13 @@ export const authAPI = {
   logout: () => api.post('/auth/logout'),
   getMe: () => api.get('/auth/me'),
   toggle2FA: () => api.patch('/auth/toggle-2fa'),
+  updateProfile: (data) => api.patch('/auth/profile', data),
   refreshToken: () => api.post('/auth/refresh-token'),
 };
 
 export const dashboardAPI = {
   get: () => api.get('/dashboard'),
+  getHeatmap: () => api.get('/dashboard/heatmap'),
 };
 
 export const accountAPI = {
@@ -103,6 +99,9 @@ export const transactionAPI = {
   getStats: (period) => api.get(`/transactions/stats?period=${period}`),
   getRecent: (limit = 5) => api.get(`/transactions/recent?limit=${limit}`),
   exportCSV: (params) => api.get('/transactions/export/csv', { params, responseType: 'blob' }),
+  create: (data) => api.post('/transactions', data),
+  update: (id, data) => api.patch(`/transactions/${id}`, data),
+  delete: (id) => api.delete(`/transactions/${id}`),
 };
 
 export const statementAPI = {
@@ -154,6 +153,10 @@ export const chatbotAPI = {
   getSession: (id) => api.get(`/chatbot/sessions/${id}`),
   deleteSession: (id) => api.delete(`/chatbot/sessions/${id}`),
   getSuggestions: () => api.get('/chatbot/suggestions'),
+};
+
+export const searchAPI = {
+  query: (q) => api.get('/search', { params: { q } }),
 };
 
 export const currencyAPI = {

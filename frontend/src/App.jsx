@@ -6,6 +6,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ChatWidget from '@/components/chatbot/ChatWidget';
 import OAuthCallback from '@/pages/OAuthCallback';
+import { Toaster } from 'sonner';
 
 // Public Pages
 const Landing = lazy(() => import('@/pages/Landing'));
@@ -13,6 +14,7 @@ const Login = lazy(() => import('@/pages/Auth/Login'));
 const Register = lazy(() => import('@/pages/Auth/Register'));
 const ForgotPassword = lazy(() => import('@/pages/Auth/ForgotPassword'));
 const ResetPassword = lazy(() => import('@/pages/Auth/ResetPassword'));
+const VerifyPayment = lazy(() => import('@/pages/VerifyPayment'));
 
 // Protected User Pages
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
@@ -31,6 +33,13 @@ const Settings = lazy(() => import('@/pages/Settings'));
 const AdminDashboard = lazy(() => import('@/pages/Admin/Dashboard'));
 const UserManagement = lazy(() => import('@/pages/Admin/Users'));
 const SystemHealth = lazy(() => import('@/pages/Admin/SystemHealth'));
+const Analytics = lazy(() => import('@/pages/Admin/Analytics'));
+const AuditLogs = lazy(() => import('@/pages/Admin/AuditLogs'));
+
+import { 
+  CheckCircle2, AlertCircle, Info, XCircle 
+} from 'lucide-react';
+
 
 function App() {
   const { initialize, isAuthenticated } = useAuthStore();
@@ -39,8 +48,31 @@ function App() {
     initialize();
   }, [initialize]);
 
+
   return (
     <Suspense fallback={<LoadingSpinner fullScreen />}>
+      <Toaster 
+        position="top-right" 
+        expand={true}
+        closeButton
+        icons={{
+          success: <CheckCircle2 className="h-4 w-4 text-[#1c9cf0]" />,
+          info: <Info className="h-4 w-4 text-[#1c9cf0]" />,
+          warning: <AlertCircle className="h-4 w-4 text-[#f7b928]" />,
+          error: <XCircle className="h-4 w-4 text-[#f4212e]" />,
+          loading: <LoadingSpinner size="sm" />,
+        }}
+        toastOptions={{
+          style: {
+            background: '#000000',
+            border: '1px solid #1c9cf033',
+            color: '#ffffff',
+            borderRadius: '12px',
+            fontSize: '13px',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+          },
+        }}
+      />
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<Landing />} />
@@ -49,6 +81,7 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/auth/callback" element={<OAuthCallback />} />
+        <Route path="/verify-payment/:transactionId" element={<VerifyPayment />} />
 
         {/* Protected Dashboard Routes */}
         <Route
@@ -74,8 +107,10 @@ function App() {
 
           {/* Admin Routes */}
           <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/analytics" element={<ProtectedRoute requireAdmin><Analytics /></ProtectedRoute>} />
           <Route path="/admin/users" element={<ProtectedRoute requireAdmin><UserManagement /></ProtectedRoute>} />
           <Route path="/admin/health" element={<ProtectedRoute requireAdmin><SystemHealth /></ProtectedRoute>} />
+          <Route path="/admin/audit-logs" element={<ProtectedRoute requireAdmin><AuditLogs /></ProtectedRoute>} />
         </Route>
 
         {/* 404 Route */}

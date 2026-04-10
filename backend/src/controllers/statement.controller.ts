@@ -10,20 +10,17 @@ import { PDFService } from '../services/pdf.service';
 import { maskAccountNumber } from '../utils/helpers';
 import { logger } from '../utils/logger';
 
-// GET MONTHLY STATEMENT 
 export const getMonthlyStatement = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
 
     const { accountId } = req.params;
-    const month = (req.query.month as string) || new Date().toISOString().slice(0, 7); // YYYY-MM
+    const month = (req.query.month as string) || new Date().toISOString().slice(0, 7);
 
-    // Parse month
     const [year, monthNum] = month.split('-').map(Number);
     const startDate = new Date(year, monthNum - 1, 1);
     const endDate = new Date(year, monthNum, 0, 23, 59, 59);
 
-    // Verify account ownership
     const { data: account } = await supabaseAdmin
       .from('accounts')
       .select('*')
@@ -33,7 +30,6 @@ export const getMonthlyStatement = asyncHandler(
 
     if (!account) throw new NotFoundError('Account not found');
 
-    // Get transactions for the month
     const { data: transactions } = await supabaseAdmin
       .from('ledger')
       .select('*')
@@ -44,7 +40,6 @@ export const getMonthlyStatement = asyncHandler(
 
     const txns = transactions || [];
 
-    // Calculate opening balance (balance before first transaction of the month)
     const { data: priorTxn } = await supabaseAdmin
       .from('ledger')
       .select('running_balance')
@@ -71,7 +66,6 @@ export const getMonthlyStatement = asyncHandler(
         ? Number(txns[txns.length - 1].running_balance)
         : openingBalance;
 
-    // Category breakdown
     const categoryMap: Record<string, number> = {};
     for (const txn of txns.filter((t) => t.type === 'debit')) {
       const cat = txn.category || 'Other';
@@ -113,7 +107,6 @@ export const getMonthlyStatement = asyncHandler(
   }
 );
 
-//  DOWNLOAD STATEMENT PDF 
 export const downloadStatementPDF = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -130,7 +123,6 @@ export const downloadStatementPDF = asyncHandler(
       year: 'numeric',
     });
 
-    // Verify account ownership
     const { data: account } = await supabaseAdmin
       .from('accounts')
       .select('*')
@@ -140,7 +132,6 @@ export const downloadStatementPDF = asyncHandler(
 
     if (!account) throw new NotFoundError('Account not found');
 
-    // Get transactions
     const { data: transactions } = await supabaseAdmin
       .from('ledger')
       .select('*')
@@ -151,7 +142,6 @@ export const downloadStatementPDF = asyncHandler(
 
     const txns = transactions || [];
 
-    // Opening balance
     const { data: priorTxn } = await supabaseAdmin
       .from('ledger')
       .select('running_balance')
@@ -178,7 +168,6 @@ export const downloadStatementPDF = asyncHandler(
         ? Number(txns[txns.length - 1].running_balance)
         : openingBalance;
 
-    // Generate PDF
     const pdfBuffer = await PDFService.generateStatement({
       user_name: req.user.name,
       account_number: account.account_number,
@@ -199,7 +188,6 @@ export const downloadStatementPDF = asyncHandler(
       })),
     });
 
-    // Audit log
     await supabaseAdmin.from('audit_log').insert({
       user_id: req.user.id,
       action: 'DOWNLOAD_STATEMENT',
@@ -219,15 +207,13 @@ export const downloadStatementPDF = asyncHandler(
   }
 );
 
-// GET AVAILABLE STATEMENT MONTHS 
 export const getStatementMonths = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
 
     const { accountId } = req.params;
 
-    // Verify ownership
-    const { data: account } = await supabaseAdmin
+      const { data: account } = await supabaseAdmin
       .from('accounts')
       .select('id')
       .eq('id', accountId)
@@ -236,7 +222,6 @@ export const getStatementMonths = asyncHandler(
 
     if (!account) throw new NotFoundError('Account not found');
 
-    // Get distinct months with transactions
     const { data: months } = await supabaseAdmin
       .from('ledger')
       .select('created_at')

@@ -10,11 +10,11 @@ interface FraudCheckResult {
     severity: 'low' | 'medium' | 'high' | 'critical';
     description: string;
   }>;
-  riskScore: number; // 0–100
+  riskScore: number; 
 }
 
 export class FraudService {
-  // Pre-transfer fraud check (before executing)
+  
   static async checkTransaction(
     userId: string,
     accountId: string,
@@ -24,7 +24,7 @@ export class FraudService {
     const alerts: FraudCheckResult['alerts'] = [];
     let riskScore = 0;
 
-    // 1. Large transaction check
+    
     if (amount >= FRAUD_THRESHOLDS.LARGE_TRANSACTION_USD) {
       alerts.push({
         type: 'large_transaction',
@@ -34,7 +34,7 @@ export class FraudService {
       riskScore += 30;
     }
 
-    // 2. Round amount check
+    
     if (
       amount >= FRAUD_THRESHOLDS.ROUND_AMOUNT_THRESHOLD &&
       amount % 5000 === 0
@@ -47,7 +47,7 @@ export class FraudService {
       riskScore += 15;
     }
 
-    // 3. Velocity check — transactions in last hour
+    
     const { data: recentTxns } = await supabaseAdmin
       .from('ledger')
       .select('id, amount')
@@ -83,7 +83,7 @@ export class FraudService {
       riskScore += 35;
     }
 
-    // 4. Unusual pattern — compare with average transaction
+    
     const { data: avgData } = await supabaseAdmin.rpc('get_spending_by_category', {
       p_user_id: userId,
     });
@@ -105,7 +105,7 @@ export class FraudService {
       }
     }
 
-    // Cap risk score at 100
+    
     riskScore = Math.min(riskScore, 100);
 
     return {
@@ -115,7 +115,7 @@ export class FraudService {
     };
   }
 
-  // Store fraud alerts and notify user
+  
   static async createAlerts(
     userId: string,
     accountId: string,
@@ -133,7 +133,7 @@ export class FraudService {
       });
     }
 
-    // Notify user via email for high severity
+    
     const highSeverityAlerts = alerts.filter(
       (a) => a.severity === 'high' || a.severity === 'critical'
     );
@@ -160,17 +160,17 @@ export class FraudService {
     );
   }
 
-  // AI-powered fraud scoring (enhanced)
+  
   static calculateAIRiskScore(
     amount: number,
     hourlyTxnCount: number,
     hourlyTxnAmount: number,
     avgTxnAmount: number,
-    accountAge: number // days
+    accountAge: number 
   ): number {
     let score = 0;
 
-    // Amount anomaly
+    
     if (avgTxnAmount > 0) {
       const anomalyRatio = amount / avgTxnAmount;
       if (anomalyRatio > 10) score += 40;
@@ -178,16 +178,16 @@ export class FraudService {
       else if (anomalyRatio > 3) score += 15;
     }
 
-    // Velocity
+    
     if (hourlyTxnCount > 15) score += 30;
     else if (hourlyTxnCount > 10) score += 20;
     else if (hourlyTxnCount > 5) score += 10;
 
-    // New account risk
+    
     if (accountAge < 7) score += 20;
     else if (accountAge < 30) score += 10;
 
-    // Volume risk
+    
     if (hourlyTxnAmount > 100000) score += 30;
     else if (hourlyTxnAmount > 50000) score += 20;
 

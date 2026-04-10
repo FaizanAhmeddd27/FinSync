@@ -7,7 +7,7 @@ export class CronService {
   static init(): void {
     logger.info('Initializing cron jobs...');
 
-    // Process Scheduled Transfers (every 5 minutes) 
+    
     cron.schedule('*/5 * * * *', async () => {
       try {
         const now = new Date().toISOString();
@@ -25,7 +25,7 @@ export class CronService {
 
         for (const transfer of scheduledTransfers) {
           try {
-            // Re-calculate exchange rate for current rates
+            
             let exchangeRate = Number(transfer.exchange_rate);
             let convertedAmount = Number(transfer.converted_amount);
 
@@ -39,7 +39,7 @@ export class CronService {
               convertedAmount = conversion.convertedAmount;
             }
 
-            // Execute the transfer
+            
             const { error } = await supabaseAdmin.rpc('execute_transfer', {
               p_from_account_id: transfer.from_account_id,
               p_to_account_id: transfer.to_account_id,
@@ -61,7 +61,7 @@ export class CronService {
               continue;
             }
 
-            // Mark as completed
+            
             await supabaseAdmin
               .from('transfers')
               .update({
@@ -72,7 +72,7 @@ export class CronService {
               })
               .eq('id', transfer.id);
 
-            // If recurring, create next scheduled transfer
+            
             if (transfer.is_recurring && transfer.recurrence_pattern) {
               const nextDate = this.calculateNextDate(
                 new Date(transfer.scheduled_at),
@@ -111,7 +111,7 @@ export class CronService {
       }
     });
 
-    // Refresh Currency Rates (every hour)
+    
     cron.schedule('0 * * * *', async () => {
       try {
         logger.info('Refreshing currency rates...');
@@ -122,7 +122,7 @@ export class CronService {
       }
     });
 
-    // ====== 3. Refresh Materialized Views (every 6 hours) ======
+    
     cron.schedule('0 */6 * * *', async () => {
       try {
         logger.info('Refreshing materialized views...');
@@ -136,7 +136,7 @@ export class CronService {
       }
     });
 
-    //Cleanup Old OTPs (daily at midnight)
+    
     cron.schedule('0 0 * * *', async () => {
       try {
         logger.info('Cleaning up expired OTPs...');
@@ -153,7 +153,7 @@ export class CronService {
       }
     });
 
-    //Cleanup Old Notifications (weekly on Sunday) 
+    
     cron.schedule('0 0 * * 0', async () => {
       try {
         logger.info('Cleaning up old read notifications...');
@@ -171,7 +171,7 @@ export class CronService {
       }
     });
 
-    //Budget Alerts (daily at 8 AM) 
+    
     cron.schedule('0 8 * * *', async () => {
       try {
         logger.info('Checking budget alerts...');
@@ -247,10 +247,34 @@ export class CronService {
       }
     });
 
+    
+    cron.schedule('0 1 * * *', async () => {
+      try {
+        logger.info('Processing daily spending summary...');
+        
+        
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const dateStr = yesterday.toISOString().split('T')[0];
+        
+        const { error } = await supabaseAdmin.rpc('process_daily_spending', {
+          p_process_date: dateStr,
+        });
+
+        if (error) {
+          logger.error('Daily spending summary failed:', error);
+        } else {
+          logger.success(`Daily spending summary processed for ${dateStr}`);
+        }
+      } catch (error) {
+        logger.error('Daily spending summary cron error:', error);
+      }
+    });
+
     logger.success('All cron jobs initialized');
   }
 
-  // Helper: Calculate next recurring date
+  
   private static calculateNextDate(
     currentDate: Date,
     pattern: string

@@ -15,6 +15,8 @@ import FadeInView from '@/components/animations/FadeInView';
 import { useTheme } from '@/context/ThemeContext';
 import useAuthStore from '@/stores/authStore';
 import { authAPI } from '@/lib/api';
+import { toast } from 'sonner';
+import StackedFinanceCards from '@/components/ui/StackedFinanceCards';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -83,14 +85,17 @@ export default function Login() {
         setOtpType(result.data?.otpType || result.otpType);
         setShowOTP(true);
         startResendCooldown();
+        toast.info('Verification code sent to your email.');
       } else if (result.success) {
         setShowSuccess(true);
+        toast.success('Login successful! Welcome back.');
         setTimeout(() => navigate(from, { replace: true }), 1200);
       }
     } catch (err) {
       const msg =
         err.response?.data?.message || 'Login failed. Please try again.';
       setError(msg);
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
@@ -115,10 +120,13 @@ export default function Login() {
 
       if (result.success) {
         setShowSuccess(true);
+        toast.success('Verified! Redirecting to dashboard...');
         setTimeout(() => navigate(from, { replace: true }), 1200);
       }
     } catch (err) {
-      setOtpError(err.response?.data?.message || 'Invalid OTP');
+      const errMsg = err.response?.data?.message || 'Invalid OTP';
+      setOtpError(errMsg);
+      toast.error(errMsg);
     } finally {
       setOtpLoading(false);
     }
@@ -131,8 +139,10 @@ export default function Login() {
     try {
       await authAPI.resendOTP({ userId, type: otpType });
       startResendCooldown();
+      toast.success('OTP resent successfully!');
     } catch (err) {
       setOtpError('Failed to resend OTP');
+      toast.error('Failed to resend OTP.');
     } finally {
       setResendLoading(false);
     }
@@ -199,25 +209,9 @@ export default function Login() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="space-y-6"
+            className="w-full"
           >
-            {[
-              { icon: '🔒', text: 'Bank-grade encryption & security' },
-              { icon: '🌍', text: 'Multi-currency support (8+ currencies)' },
-              { icon: '🤖', text: 'AI-powered financial insights' },
-              { icon: '📊', text: 'Real-time analytics & budgeting' },
-            ].map((item, i) => (
-              <motion.div
-                key={item.text}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.5 + i * 0.1 }}
-                className="flex items-center gap-3 text-left"
-              >
-                <span className="text-xl">{item.icon}</span>
-                <span className="text-sm text-muted-foreground">{item.text}</span>
-              </motion.div>
-            ))}
+            <StackedFinanceCards />
           </motion.div>
         </div>
       </div>

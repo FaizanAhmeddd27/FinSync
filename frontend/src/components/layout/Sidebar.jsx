@@ -9,36 +9,42 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import useAuthStore from '@/stores/authStore';
+import { toast } from 'sonner';
 
 const mainNav = [
-  { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-  { name: 'Accounts', icon: Wallet, path: '/accounts' },
-  { name: 'Transfers', icon: ArrowLeftRight, path: '/transfers' },
-  { name: 'Transactions', icon: Receipt, path: '/transactions' },
-  { name: 'Statements', icon: FileText, path: '/statements' },
+  { key: 'dashboard', icon: LayoutDashboard, path: '/dashboard' },
+  { key: 'accounts', icon: Wallet, path: '/accounts' },
+  { key: 'transfers', icon: ArrowLeftRight, path: '/transfers' },
+  { key: 'transactions', icon: Receipt, path: '/transactions' },
+  { key: 'statements', icon: FileText, path: '/statements' },
 ];
 
 const toolsNav = [
-  { name: 'Budget', icon: PieChart, path: '/budget' },
-  { name: 'Investments', icon: TrendingUp, path: '/investments' },
-  { name: 'AI Assistant', icon: Bot, path: '/chatbot' },
-  { name: 'Fraud Alerts', icon: ShieldAlert, path: '/fraud-alerts' },
+  { key: 'budget', icon: PieChart, path: '/budget' },
+  { key: 'investments', icon: TrendingUp, path: '/investments' },
+  { key: 'chatbot', icon: Bot, path: '/chatbot' },
+  { key: 'fraud', icon: ShieldAlert, path: '/fraud-alerts' },
 ];
 
 const bottomNav = [
-  { name: 'Notifications', icon: Bell, path: '/notifications' },
-  { name: 'Settings', icon: Settings, path: '/settings' },
+  { key: 'notifications', icon: Bell, path: '/notifications' },
+  { key: 'settings', icon: Settings, path: '/settings' },
 ];
 
 const adminNav = [
-  { name: 'Admin Panel', icon: Users, path: '/admin' },
-  { name: 'System Health', icon: Activity, path: '/admin/health' },
+  { key: 'admin_dashboard', icon: LayoutDashboard, path: '/admin', admin: true },
+  { key: 'analytics', icon: TrendingUp, path: '/admin/analytics' },
+  { key: 'users', icon: Users, path: '/admin/users' },
+  { key: 'health', icon: Activity, path: '/admin/health' },
+  { key: 'audit_logs', icon: FileText, path: '/admin/audit-logs' },
 ];
 
 export default function Sidebar({ collapsed, onToggle }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, unreadNotifications } = useAuthStore();
+
+  const isAdmin = user?.role?.toLowerCase() === 'admin';
 
   const isActive = (path) => {
     if (path === '/dashboard') return location.pathname === '/dashboard';
@@ -47,6 +53,7 @@ export default function Sidebar({ collapsed, onToggle }) {
 
   const handleLogout = async () => {
     await logout();
+    toast.success('Logged out successfully.');
     navigate('/login');
   };
 
@@ -65,7 +72,6 @@ export default function Sidebar({ collapsed, onToggle }) {
               : 'text-muted-foreground hover:bg-accent hover:text-foreground'
           )}
         >
-          {/* Active indicator */}
           {active && (
             <motion.div
               layoutId="sidebar-active"
@@ -85,12 +91,28 @@ export default function Sidebar({ collapsed, onToggle }) {
                 transition={{ duration: 0.2 }}
                 className="whitespace-nowrap overflow-hidden"
               >
-                {item.name}
+                {{
+                  dashboard: 'Dashboard',
+                  admin_dashboard: 'Admin Dashboard',
+                  accounts: 'Accounts',
+                  transfers: 'Transfers',
+                  transactions: 'Transactions',
+                  statements: 'Statements',
+                  budget: 'Budget',
+                  investments: 'Investments',
+                  chatbot: 'AI Assistant',
+                  fraud: 'Fraud Alerts',
+                  notifications: 'Notifications',
+                  settings: 'Settings',
+                  analytics: 'Analytics',
+                  users: 'Users',
+                  health: 'System Health',
+                  audit_logs: 'Audit Logs',
+                }[item.key]}
               </motion.span>
             )}
           </AnimatePresence>
 
-          {/* Notification badge */}
           {showBadge && unreadNotifications > 0 && (
             <span
               className={cn(
@@ -102,10 +124,26 @@ export default function Sidebar({ collapsed, onToggle }) {
             </span>
           )}
 
-          {/* Tooltip for collapsed */}
           {collapsed && (
             <div className="absolute left-full ml-3 px-2 py-1 bg-popover text-popover-foreground text-xs rounded-md shadow-lg border border-border opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-              {item.name}
+              {{
+                dashboard: 'Dashboard',
+                admin_dashboard: 'Admin Dashboard',
+                accounts: 'Accounts',
+                transfers: 'Transfers',
+                transactions: 'Transactions',
+                statements: 'Statements',
+                budget: 'Budget',
+                investments: 'Investments',
+                chatbot: 'AI Assistant',
+                fraud: 'Fraud Alerts',
+                notifications: 'Notifications',
+                settings: 'Settings',
+                analytics: 'Analytics',
+                users: 'Users',
+                health: 'System Health',
+                audit_logs: 'Audit Logs',
+              }[item.key]}
             </div>
           )}
         </motion.div>
@@ -136,11 +174,10 @@ export default function Sidebar({ collapsed, onToggle }) {
         'hidden lg:flex'
       )}
     >
-      {/* Header */}
       <div className="flex items-center justify-between px-4 h-16 border-b border-border shrink-0">
         <Link to="/dashboard" className="flex items-center gap-2 overflow-hidden">
-          <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-            <Landmark className="h-5 w-5 text-primary" />
+          <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+            <img src="/logo.png" alt="Logo" className="h-6 w-6 object-contain" />
           </div>
           <AnimatePresence>
             {!collapsed && (
@@ -168,7 +205,6 @@ export default function Sidebar({ collapsed, onToggle }) {
         </button>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5 scrollbar-hide">
         <SectionLabel label="Main" />
         {mainNav.map((item) => (
@@ -180,8 +216,7 @@ export default function Sidebar({ collapsed, onToggle }) {
           <NavItem key={item.path} item={item} />
         ))}
 
-        {/* Admin section */}
-        {user?.role === 'admin' && (
+        {isAdmin && (
           <>
             <SectionLabel label="Admin" />
             {adminNav.map((item) => (
@@ -195,12 +230,11 @@ export default function Sidebar({ collapsed, onToggle }) {
           <NavItem
             key={item.path}
             item={item}
-            showBadge={item.name === 'Notifications'}
+            showBadge={item.key === 'notifications'}
           />
         ))}
       </nav>
 
-      {/* User & Logout */}
       <div className="border-t border-border p-3 shrink-0">
         <button
           onClick={handleLogout}

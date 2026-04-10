@@ -34,7 +34,6 @@ export const INVESTMENT_TYPES = ['stocks', 'bonds', 'mutual_funds', 'crypto', 'f
 
 export const NOTIFICATION_TYPES = ['transaction', 'fraud', 'system', 'otp', 'promotion', 'budget_alert'] as const;
 
-// Fraud detection thresholds
 export const FRAUD_THRESHOLDS = {
   LARGE_TRANSACTION_USD: 10000,
   VELOCITY_MAX_TRANSACTIONS_PER_HOUR: 10,
@@ -42,12 +41,11 @@ export const FRAUD_THRESHOLDS = {
   ROUND_AMOUNT_THRESHOLD: 5000,
 } as const;
 
-// Cookie options
 export const COOKIE_OPTIONS = {
-  httpOnly: false, // Allow frontend access for auth initialization
+  httpOnly: false, 
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'lax' as const,
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  maxAge: 7 * 24 * 60 * 60 * 1000, 
   path: '/',
 };
 

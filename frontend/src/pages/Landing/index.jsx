@@ -16,10 +16,14 @@ import AnimatedCounter from '@/components/animations/AnimatedCounter';
 import { FlickeringGrid } from '@/components/animations/FlickeringGrid';
 import { FloatingCard, GlowingOrb } from '@/components/animations/FloatingElements';
 import { useTheme } from '@/context/ThemeContext';
+import useAuthStore from '@/stores/authStore';
+import { SpiralAnimation } from '@/components/ui/SpiralAnimation';
+import BlurText from '@/components/ui/BlurText';
 
 // ======================== HERO SECTION ========================
 function HeroSection() {
   const { theme } = useTheme();
+  const { isAuthenticated } = useAuthStore();
   const ref = useRef(null);
   const { scrollYProgress } = useScroll({
     target: ref,
@@ -29,9 +33,16 @@ function HeroSection() {
   const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
 
   return (
-    <section ref={ref} className="relative min-h-screen flex items-center overflow-hidden pt-16">
+    <section ref={ref} className="relative min-h-screen flex items-center overflow-hidden pt-16 bg-background">
+      {/* Spiral Animation Background */}
+      {theme === 'dark' && (
+        <div className="absolute inset-0 z-0 opacity-40">
+          <SpiralAnimation />
+        </div>
+      )}
+
       {/* Flickering Grid Background */}
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 opacity-30 dark:opacity-100">
         <FlickeringGrid
           color={theme === 'dark' ? 'rgb(28, 156, 240)' : 'rgb(30, 157, 241)'}
           maxOpacity={theme === 'dark' ? 0.12 : 0.08}
@@ -61,26 +72,13 @@ function HeroSection() {
               <span className="text-sm text-primary font-medium">Now with AI-Powered Insights</span>
             </motion.div>
 
-            <motion.h1
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.1 }}
-              className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold leading-tight tracking-tight"
-            >
-              Banking{' '}
-              <span className="text-gradient">Reimagined</span>
-              <br />
-              for the{' '}
-              <span className="relative">
-                Digital Age
-                <motion.div
-                  className="absolute -bottom-2 left-0 right-0 h-1 bg-primary rounded-full"
-                  initial={{ scaleX: 0 }}
-                  animate={{ scaleX: 1 }}
-                  transition={{ duration: 0.8, delay: 0.8 }}
-                />
-              </span>
-            </motion.h1>
+            <BlurText
+              text="Banking Reimagined for the Digital Age"
+              delay={150}
+              animateBy="words"
+              direction="top"
+              className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold leading-tight tracking-tight text-foreground dark:text-white"
+            />
 
             <motion.p
               initial={{ opacity: 0, y: 30 }}
@@ -98,17 +96,28 @@ function HeroSection() {
               transition={{ duration: 0.7, delay: 0.5 }}
               className="mt-8 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start"
             >
-              <Link to="/register">
-                <Button variant="glow" size="xl" className="w-full sm:w-auto group">
-                  Open Free Account
-                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
-              <Link to="/login">
-                <Button variant="outline" size="xl" className="w-full sm:w-auto">
-                  Sign In
-                </Button>
-              </Link>
+              {isAuthenticated ? (
+                <Link to="/dashboard">
+                  <Button variant="glow" size="xl" className="w-full sm:w-auto group">
+                    Go to Dashboard
+                    <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                </Link>
+              ) : (
+                <>
+                  <Link to="/register">
+                    <Button variant="glow" size="xl" className="w-full sm:w-auto group">
+                      Open Free Account
+                      <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                  </Link>
+                  <Link to="/login">
+                    <Button variant="outline" size="xl" className="w-full sm:w-auto">
+                      Sign In
+                    </Button>
+                  </Link>
+                </>
+              )}
             </motion.div>
 
             {/* Trust indicators */}
@@ -486,6 +495,7 @@ function TestimonialsSection() {
 // ======================== CTA SECTION ========================
 function CTASection() {
   const { theme } = useTheme();
+  const { isAuthenticated } = useAuthStore();
 
   return (
     <section className="py-24 relative overflow-hidden">
@@ -511,9 +521,9 @@ function CTASection() {
               whileInView={{ scale: 1 }}
               viewport={{ once: true }}
               transition={{ type: 'spring', stiffness: 200, delay: 0.2 }}
-              className="mx-auto h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6"
+              className="mx-auto h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 overflow-hidden"
             >
-              <Landmark className="h-8 w-8 text-primary" />
+              <img src="/logo.png" alt="Logo" className="h-10 w-10 object-contain" />
             </motion.div>
 
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold">
@@ -527,17 +537,28 @@ function CTASection() {
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/register">
-                <Button variant="glow" size="xl" className="w-full sm:w-auto group">
-                  Get Started Free
-                  <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
-              <Link to="/login">
-                <Button variant="outline" size="xl" className="w-full sm:w-auto">
-                  I Already Have an Account
-                </Button>
-              </Link>
+              {isAuthenticated ? (
+                <Link to="/dashboard">
+                  <Button variant="glow" size="xl" className="w-full sm:w-auto group">
+                    Return to Dashboard
+                    <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                </Link>
+              ) : (
+                <>
+                  <Link to="/register">
+                    <Button variant="glow" size="xl" className="w-full sm:w-auto group">
+                      Get Started Free
+                      <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                  </Link>
+                  <Link to="/login">
+                    <Button variant="outline" size="xl" className="w-full sm:w-auto">
+                      I Already Have an Account
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
 
             <p className="mt-6 text-xs text-muted-foreground">
