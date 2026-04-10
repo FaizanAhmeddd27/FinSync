@@ -3,7 +3,6 @@ import { supabaseAdmin } from '../config/supabase';
 import { asyncHandler } from '../middleware/errorHandler';
 import { UnauthorizedError, NotFoundError } from '../utils/errors';
 
-// GET NOTIFICATIONS 
 export const getNotifications = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -31,7 +30,6 @@ export const getNotifications = asyncHandler(
 
     if (error) throw error;
 
-    // Get unread count
     const { count: unreadCount } = await supabaseAdmin
       .from('notifications')
       .select('*', { count: 'exact', head: true })
@@ -59,7 +57,6 @@ export const getNotifications = asyncHandler(
   }
 );
 
-// ADD THIS NEW FUNCTION
 export const getNotificationStats = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -84,7 +81,6 @@ export const getNotificationStats = asyncHandler(
   }
 );
 
-// MARK AS READ 
 export const markAsRead = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -106,7 +102,6 @@ export const markAsRead = asyncHandler(
   }
 );
 
-// MARK ALL AS READ 
 export const markAllAsRead = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -124,7 +119,6 @@ export const markAllAsRead = asyncHandler(
   }
 );
 
-// DELETE NOTIFICATION 
 export const deleteNotification = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -144,7 +138,6 @@ export const deleteNotification = asyncHandler(
   }
 );
 
-// DELETE ALL READ NOTIFICATIONS 
 export const clearReadNotifications = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -162,7 +155,6 @@ export const clearReadNotifications = asyncHandler(
   }
 );
 
-// GET UNREAD COUNT 
 export const getUnreadCount = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();

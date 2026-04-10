@@ -3,7 +3,7 @@ import { asyncHandler } from '../middleware/errorHandler';
 import { CurrencyService } from '../services/currency.service';
 import { BadRequestError } from '../utils/errors';
 
-// GET ALL RATES 
+
 export const getRates = asyncHandler(
   async (req: Request, res: Response) => {
     const base = (req.query.base as string) || 'USD';
@@ -21,7 +21,7 @@ export const getRates = asyncHandler(
   }
 );
 
-// CONVERT CURRENCY 
+
 export const convertCurrency = asyncHandler(
   async (req: Request, res: Response) => {
     const { amount, from, to } = req.query;
@@ -66,7 +66,7 @@ export const convertCurrency = asyncHandler(
   }
 );
 
-//  GET SUPPORTED CURRENCIES 
+
 export const getSupportedCurrencies = asyncHandler(
   async (_req: Request, res: Response) => {
     const currencies = [

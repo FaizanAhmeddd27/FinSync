@@ -3,16 +3,16 @@ import { supabaseAdmin } from '../config/supabase';
 import { asyncHandler } from '../middleware/errorHandler';
 import {
   NotFoundError,
-  UnauthorizedError,
   ForbiddenError,
+  UnauthorizedError,
 } from '../utils/errors';
 import { logger } from '../utils/logger';
 
-// GET USER'S FRAUD ALERTS 
 export const getFraudAlerts = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
 
+    const isAdmin = req.user.role?.toLowerCase() === 'admin';
     const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(
       parseInt(req.query.limit as string) || 20,
@@ -27,14 +27,18 @@ export const getFraudAlerts = asyncHandler(
       .select(
         `
         *,
-        account:accounts(account_number, account_type, currency),
-        ledger_entry:ledger(amount, type, description, created_at)
+        users!user_id(id, name, email, avatar_url),
+        accounts!account_id(account_number, account_type, currency),
+        ledger!ledger_id(amount, type, description, created_at)
       `,
         { count: 'exact' }
       )
-      .eq('user_id', req.user.id)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
+
+    if (!isAdmin) {
+      query = query.eq('user_id', req.user.id);
+    }
 
     if (status) query = query.eq('status', status);
     if (severity) query = query.eq('severity', severity);
@@ -48,11 +52,15 @@ export const getFraudAlerts = asyncHandler(
     const total = count || 0;
     const totalPages = Math.ceil(total / limit);
 
-    // Get summary stats
-    const { data: stats } = await supabaseAdmin
+    let statsQuery = supabaseAdmin
       .from('fraud_alerts')
-      .select('status, severity')
-      .eq('user_id', req.user.id);
+      .select('status, severity');
+    
+    if (!isAdmin) {
+      statsQuery = statsQuery.eq('user_id', req.user.id);
+    }
+
+    const { data: stats } = await statsQuery;
 
     const summary = {
       total: stats?.length || 0,
@@ -68,7 +76,12 @@ export const getFraudAlerts = asyncHandler(
       success: true,
       message: 'Fraud alerts fetched',
       data: {
-        alerts: alerts || [],
+        alerts: (alerts || []).map((a: any) => ({
+          ...a,
+          user: a.users,
+          account: a.accounts,
+          ledger_entry: a.ledger
+        })),
         summary,
         pagination: {
           page,
@@ -83,26 +96,32 @@ export const getFraudAlerts = asyncHandler(
   }
 );
 
-//GET SINGLE FRAUD ALERT 
 export const getFraudAlertById = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
 
     const { alertId } = req.params;
 
-     const { data: alert } = await supabaseAdmin
+     const { data: alert, error } = await supabaseAdmin
       .from('fraud_alerts')
       .select(`
         *,
-        account:accounts(account_number, account_type, currency, balance),
-        ledger_entry:ledger(amount, type, description, category, reference_id, created_at)
+        users!user_id(id, name, email, avatar_url, kyc_status),
+        accounts!account_id(account_number, account_type, currency, balance),
+        ledger!ledger_id(amount, type, description, category, reference_id, created_at)
       `)
       .eq('id', alertId)
       .single();
 
-    if (!alert) throw new NotFoundError('Fraud alert not found');
+    if (error || !alert) {
+      logger.error('Get fraud alert detail error:', error);
+      throw new NotFoundError('Fraud alert not found');
+    }
 
-    // Fetch reviewer separately if exists
+    if (alert.user_id !== req.user.id && req.user.role?.toLowerCase() !== 'admin') {
+      throw new ForbiddenError();
+    }
+
     let reviewer = null;
     if (alert.reviewed_by) {
       const { data: reviewerData } = await supabaseAdmin
@@ -113,29 +132,31 @@ export const getFraudAlertById = asyncHandler(
       reviewer = reviewerData;
     }
 
-    // Check ownership
-    if (alert.user_id !== req.user.id && req.user.role !== 'admin') {
-      throw new ForbiddenError();
-    }
-
     res.status(200).json({
       success: true,
-      data: { alert: { ...alert, reviewer } },
+      data: { 
+        alert: { 
+          ...alert, 
+          user: alert.users,
+          account: alert.accounts,
+          ledger_entry: alert.ledger,
+          reviewer 
+        } 
+      },
     });
   }
 );
 
-// CLEAR FRAUD ALERT (Admin) 
 export const clearFraudAlert = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
-    if (req.user.role !== 'admin') throw new ForbiddenError('Admin access required');
+    if (req.user.role?.toLowerCase() !== 'admin') throw new ForbiddenError('Only admins can clear alerts');
 
     const { alertId } = req.params;
 
     const { data: alert } = await supabaseAdmin
       .from('fraud_alerts')
-      .select('id, status')
+      .select('id, user_id, status')
       .eq('id', alertId)
       .single();
 
@@ -150,7 +171,14 @@ export const clearFraudAlert = asyncHandler(
       })
       .eq('id', alertId);
 
-    // Audit log
+    await supabaseAdmin.from('notifications').insert({
+      user_id: alert.user_id,
+      type: 'info',
+      title: '✅ Transaction Verified',
+      message: 'A flagged transaction has been reviewed and verified by our system. Your account is secure.',
+      metadata: { alert_id: alertId },
+    });
+
     await supabaseAdmin.from('audit_log').insert({
       user_id: req.user.id,
       action: 'CLEAR_FRAUD_ALERT',
@@ -167,11 +195,10 @@ export const clearFraudAlert = asyncHandler(
   }
 );
 
-// BLOCK ACCOUNT FROM FRAUD ALERT (Admin) 
 export const blockFromFraudAlert = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
-    if (req.user.role !== 'admin') throw new ForbiddenError('Admin access required');
+    if (req.user.role?.toLowerCase() !== 'admin') throw new ForbiddenError('Only admins can block accounts from alerts');
 
     const { alertId } = req.params;
 
@@ -183,13 +210,11 @@ export const blockFromFraudAlert = asyncHandler(
 
     if (!alert) throw new NotFoundError('Fraud alert not found');
 
-    // Block the account
     await supabaseAdmin.rpc('block_account', {
       p_account_id: alert.account_id,
       p_admin_id: req.user.id,
     });
 
-    // Update alert status
     await supabaseAdmin
       .from('fraud_alerts')
       .update({
@@ -199,13 +224,12 @@ export const blockFromFraudAlert = asyncHandler(
       })
       .eq('id', alertId);
 
-    // Notify user
     await supabaseAdmin.from('notifications').insert({
       user_id: alert.user_id,
       type: 'fraud',
       title: '🚫 Account Frozen',
       message:
-        'Your account has been frozen due to suspicious activity. Please contact support.',
+        'Your account has been frozen due to suspicious activity detected by our security engine. Please contact support.',
       metadata: { alert_id: alertId, account_id: alert.account_id },
     });
 

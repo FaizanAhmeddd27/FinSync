@@ -9,6 +9,7 @@ import {
 import { cn } from '@/lib/utils';
 import useAuthStore from '@/stores/authStore';
 import { getInitials } from '@/lib/utils';
+import { toast } from 'sonner';
 
 const allNav = [
   { section: 'Main', items: [
@@ -31,8 +32,11 @@ const allNav = [
 ];
 
 const adminItems = [
-  { name: 'Admin Panel', icon: Users, path: '/admin' },
+  { name: 'Admin Dashboard', icon: LayoutDashboard, path: '/admin' },
+  { name: 'Analytics', icon: TrendingUp, path: '/admin/analytics' },
+  { name: 'User Control', icon: Users, path: '/admin/users' },
   { name: 'System Health', icon: Activity, path: '/admin/health' },
+  { name: 'Audit Logs', icon: FileText, path: '/admin/audit-logs' },
 ];
 
 export default function MobileSidebar({ isOpen, onClose }) {
@@ -48,6 +52,7 @@ export default function MobileSidebar({ isOpen, onClose }) {
   const handleLogout = async () => {
     onClose();
     await logout();
+    toast.success('Logged out successfully.');
     navigate('/login');
   };
 
@@ -75,8 +80,8 @@ export default function MobileSidebar({ isOpen, onClose }) {
             {/* Header */}
             <div className="flex items-center justify-between px-4 h-16 border-b border-border">
               <Link to="/dashboard" onClick={onClose} className="flex items-center gap-2">
-                <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <Landmark className="h-5 w-5 text-primary" />
+                <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center overflow-hidden">
+                  <img src="/logo.png" alt="Logo" className="h-6 w-6 object-contain" />
                 </div>
                 <span className="text-lg font-bold">
                   <span className="text-primary">Fin</span>Sync

@@ -60,7 +60,7 @@ app.use(session({
   cookie: {
     secure: env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    maxAge: 24 * 60 * 60 * 1000, 
     sameSite: 'lax',
   },
 }));
@@ -93,7 +93,7 @@ app.use('/{*splat}', (_req, res) => {
   });
 });
 
-// Error handling middleware
+
 app.use(errorHandler);
 
 export default app;

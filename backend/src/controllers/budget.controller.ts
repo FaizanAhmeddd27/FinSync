@@ -1,4 +1,3 @@
-// src/controllers/budget.controller.ts
 import { Request, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase';
 import { asyncHandler } from '../middleware/errorHandler';
@@ -10,7 +9,6 @@ import {
 } from '../utils/errors';
 import { logger } from '../utils/logger';
 
-// ===================== GET ALL BUDGET CATEGORIES =====================
 export const getBudgetCategories = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -30,14 +28,12 @@ export const getBudgetCategories = asyncHandler(
   }
 );
 
-// ===================== CREATE BUDGET CATEGORY =====================
 export const createBudgetCategory = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
 
     const { category_name, monthly_limit, currency, color, icon } = req.body;
 
-    // Check for duplicate
     const { data: existing } = await supabaseAdmin
       .from('budget_categories')
       .select('id')
@@ -49,7 +45,6 @@ export const createBudgetCategory = asyncHandler(
       throw new ConflictError('A budget category with this name already exists');
     }
 
-    // Limit to 20 categories per user
     const { count } = await supabaseAdmin
       .from('budget_categories')
       .select('*', { count: 'exact', head: true })
@@ -85,7 +80,6 @@ export const createBudgetCategory = asyncHandler(
   }
 );
 
-// ===================== UPDATE BUDGET CATEGORY =====================
 export const updateBudgetCategory = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -111,7 +105,6 @@ export const updateBudgetCategory = asyncHandler(
   }
 );
 
-// ===================== DELETE BUDGET CATEGORY =====================
 export const deleteBudgetCategory = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -131,23 +124,20 @@ export const deleteBudgetCategory = asyncHandler(
   }
 );
 
-// ===================== GET BUDGET OVERVIEW (with spending data) =====================
 export const getBudgetOverview = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
 
     const month =
       (req.query.month as string) ||
-      new Date().toISOString().slice(0, 7); // YYYY-MM
+      new Date().toISOString().slice(0, 7);
 
-    // Get budget categories
     const { data: categories } = await supabaseAdmin
       .from('budget_categories')
       .select('*')
       .eq('user_id', req.user.id)
       .eq('is_active', true);
 
-    // Get user's accounts
     const { data: userAccounts } = await supabaseAdmin
       .from('accounts')
       .select('id')
@@ -155,13 +145,11 @@ export const getBudgetOverview = asyncHandler(
 
     const accountIds = (userAccounts || []).map((a) => a.id);
 
-    // Calculate date range
     const startDate = new Date(`${month}-01T00:00:00.000Z`);
     const endDate = new Date(startDate);
     endDate.setMonth(endDate.getMonth() + 1);
     endDate.setMilliseconds(-1);
 
-    // Get spending by category for this month
     let spending: any[] = [];
     if (accountIds.length > 0) {
       const { data: txns } = await supabaseAdmin
@@ -175,14 +163,12 @@ export const getBudgetOverview = asyncHandler(
       spending = txns || [];
     }
 
-    // Calculate spending per category
     const spendingMap: Record<string, number> = {};
     spending.forEach((txn) => {
       const cat = txn.category || 'Other';
       spendingMap[cat] = (spendingMap[cat] || 0) + Number(txn.amount);
     });
 
-    // Merge budget limits with actual spending
     const budgetItems = (categories || []).map((cat) => {
       const spent = spendingMap[cat.category_name] || 0;
       const limit = Number(cat.monthly_limit);
@@ -209,12 +195,10 @@ export const getBudgetOverview = asyncHandler(
       };
     });
 
-    // Total summary
     const totalBudget = budgetItems.reduce((s, b) => s + b.monthlyLimit, 0);
     const totalSpent = budgetItems.reduce((s, b) => s + b.spent, 0);
     const overBudgetCount = budgetItems.filter((b) => b.isOverBudget).length;
 
-    // Get income for the month
     let totalIncome = 0;
     if (accountIds.length > 0) {
       const { data: credits } = await supabaseAdmin
@@ -232,7 +216,6 @@ export const getBudgetOverview = asyncHandler(
       );
     }
 
-    // Spending uncategorized
     const categorizedNames = (categories || []).map((c) => c.category_name);
     const uncategorizedSpending = Object.entries(spendingMap)
       .filter(([cat]) => !categorizedNames.includes(cat))
@@ -264,12 +247,9 @@ export const getBudgetOverview = asyncHandler(
   }
 );
 
-// ===================== GET BUDGET INSIGHTS (AI-powered) =====================
 export const getBudgetInsights = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
-
-    // Get last 3 months of spending
     const threeMonthsAgo = new Date();
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
@@ -297,7 +277,6 @@ export const getBudgetInsights = asyncHandler(
     const txns = transactions || [];
     const insights: string[] = [];
 
-    // Group by month
     const monthlySpending = new Map<string, number>();
     const monthlyIncome = new Map<string, number>();
     const categoryTotals: Record<string, number[]> = {};
@@ -315,7 +294,6 @@ export const getBudgetInsights = asyncHandler(
       }
     });
 
-    // Insight 1: Monthly trend
     const months = Array.from(monthlySpending.keys()).sort();
     if (months.length >= 2) {
       const lastMonth = monthlySpending.get(months[months.length - 1]) || 0;
@@ -339,7 +317,6 @@ export const getBudgetInsights = asyncHandler(
       }
     }
 
-    // Insight 2: Top spending category
     const topCategories = Object.entries(categoryTotals)
       .map(([cat, amounts]) => ({
         category: cat,
@@ -355,7 +332,6 @@ export const getBudgetInsights = asyncHandler(
       );
     }
 
-    // Insight 3: Savings rate
     const totalIncome = Array.from(monthlyIncome.values()).reduce((s, v) => s + v, 0);
     const totalSpending = Array.from(monthlySpending.values()).reduce((s, v) => s + v, 0);
 
@@ -376,7 +352,6 @@ export const getBudgetInsights = asyncHandler(
       }
     }
 
-    // Insight 4: Recurring expenses prediction
     if (topCategories.length > 2) {
       const avgMonthly = totalSpending / Math.max(months.length, 1);
       insights.push(
@@ -384,7 +359,6 @@ export const getBudgetInsights = asyncHandler(
       );
     }
 
-    // Insight 5: Suggestions
     if (topCategories.length > 0 && topCategories[0].total > totalSpending * 0.4) {
       insights.push(
         `"${topCategories[0].category}" makes up ${Math.round(

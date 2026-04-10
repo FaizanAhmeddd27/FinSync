@@ -27,12 +27,10 @@ export default function DashboardLayout() {
 
       {/* Main Content */}
       <motion.div
-        className={cn('flex flex-col min-h-screen transition-all duration-300')}
-        style={{ marginLeft: typeof window !== 'undefined' && window.innerWidth >= 1024 ? (collapsed ? 72 : 256) : 0 }}
-        animate={{
-          marginLeft: typeof window !== 'undefined' && window.innerWidth >= 1024 ? (collapsed ? 72 : 256) : 0,
-        }}
-        transition={{ duration: 0.3 }}
+        className={cn(
+          'flex flex-col min-h-screen transition-all duration-300',
+          collapsed ? 'lg:ml-[72px]' : 'lg:ml-[256px]'
+        )}
       >
         <TopNav onMenuClick={() => setMobileOpen(true)} />
 

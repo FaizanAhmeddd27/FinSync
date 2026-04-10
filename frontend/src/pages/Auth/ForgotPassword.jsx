@@ -10,6 +10,7 @@ import Input from '@/components/ui/Input';
 import ThemeToggle from '@/components/common/ThemeToggle';
 import { GlowingOrb } from '@/components/animations/FloatingElements';
 import { authAPI } from '@/lib/api';
+import { toast } from 'sonner';
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -33,6 +34,7 @@ export default function ForgotPassword() {
       const { data } = await authAPI.forgotPassword({ email: email.trim().toLowerCase() });
       if (data.success) {
         setSent(true);
+        toast.success('Reset code sent! Check your email.');
         if (data.data?.userId) setUserId(data.data.userId);
       }
     } catch (err) {

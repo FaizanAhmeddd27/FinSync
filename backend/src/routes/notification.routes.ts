@@ -6,7 +6,7 @@ import {
   deleteNotification,
   clearReadNotifications,
   getUnreadCount,
-  getNotificationStats, // ADD THIS NEW FUNCTION
+  getNotificationStats, 
 } from '../controllers/notification.controller';
 import { authenticate } from '../middleware/auth';
 

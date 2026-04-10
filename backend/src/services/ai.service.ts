@@ -25,16 +25,16 @@ interface ChatContext {
 }
 
 export class AIService {
-  // Get user context for chatbot
+  
   static async getUserContext(userId: string): Promise<ChatContext> {
-    // Get user info
+    
     const { data: user } = await supabaseAdmin
       .from('users')
       .select('name, preferred_currency')
       .eq('id', userId)
       .single();
 
-    // Get accounts
+    
     const { data: accounts } = await supabaseAdmin
       .from('accounts')
       .select('id, balance, currency')
@@ -47,7 +47,7 @@ export class AIService {
       0
     );
 
-    // Get recent transactions (last 10)
+    
     let recentTransactions: any[] = [];
     if (accountIds.length > 0) {
       const { data: txns } = await supabaseAdmin
@@ -60,7 +60,7 @@ export class AIService {
       recentTransactions = txns || [];
     }
 
-    // Get monthly income/spending
+    
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
@@ -93,7 +93,7 @@ export class AIService {
       .sort((a, b) => b.total - a.total)
       .slice(0, 5);
 
-    // Budget alerts
+    
     const budgetAlerts: string[] = [];
     const { data: budgets } = await supabaseAdmin
       .from('budget_categories')
@@ -125,14 +125,14 @@ export class AIService {
     };
   }
 
-  // Generate AI chat response
+  
   static async chat(
     userId: string,
     message: string,
     conversationHistory: Array<{ role: string; content: string }>
   ): Promise<string> {
     try {
-      // Get user context
+      
       const context = await this.getUserContext(userId);
 
       const systemPrompt = `You are FinSync AI Assistant, a helpful and friendly digital banking assistant for FinSync Banking App.
@@ -208,7 +208,7 @@ USER CONTEXT:
     }
   }
 
-  // Generate spending insights
+  
   static async generateInsights(userId: string): Promise<string> {
     try {
       const context = await this.getUserContext(userId);
@@ -237,7 +237,7 @@ Provide insights as a JSON array of strings. Be specific and actionable.`;
     }
   }
 
-  // Categorize a transaction description
+  
   static async categorizeTransaction(description: string): Promise<string> {
     try {
       const prompt = `Categorize this transaction into exactly ONE of these categories:

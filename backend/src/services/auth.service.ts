@@ -19,34 +19,34 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  // Hash password
+  
   static async hashPassword(password: string): Promise<string> {
     const salt = await bcrypt.genSalt(12);
     return bcrypt.hash(password, salt);
   }
 
-  // Verify password
+  
   static async verifyPassword(password: string, hash: string): Promise<boolean> {
     return bcrypt.compare(password, hash);
   }
 
-  // Store refresh token in Redis
+  
   static async storeRefreshToken(userId: string, refreshToken: string): Promise<void> {
     await redisHelpers.setRefreshToken(userId, refreshToken, env.JWT_COOKIE_EXPIRE);
   }
 
-  // Verify refresh token
+  
   static async verifyRefreshToken(userId: string, refreshToken: string): Promise<boolean> {
     const storedToken = await redisHelpers.getRefreshToken(userId);
     return storedToken === refreshToken;
   }
 
-  // Revoke refresh token (logout)
+  
   static async revokeRefreshToken(userId: string): Promise<void> {
     await redisHelpers.revokeRefreshToken(userId);
   }
 
-  // Record login attempt
+  
   static async recordLoginAttempt(
     email: string,
     userId: string | null,

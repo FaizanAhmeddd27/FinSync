@@ -14,6 +14,7 @@ import FadeInView from '@/components/animations/FadeInView';
 import { notificationAPI } from '@/lib/api';
 import useAuthStore from '@/stores/authStore';
 import { cn, timeAgo } from '@/lib/utils';
+import { toast } from 'sonner';
 
 const TYPE_CONFIG = {
   transaction: { icon: ArrowLeftRight, color: '#1c9cf0', label: 'Transaction' },
@@ -62,7 +63,9 @@ export default function Notifications() {
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
       setUnreadNotifications(Math.max(0, unreadCount - 1));
-    } catch { /* ignore */ }
+    } catch {
+      toast.error('Failed to mark as read.');
+    }
   };
 
   const markAllRead = async () => {
@@ -71,7 +74,10 @@ export default function Notifications() {
       setNotifications((prev) => prev.map((n) => ({ ...n, status: 'read' })));
       setUnreadCount(0);
       setUnreadNotifications(0);
-    } catch { /* ignore */ }
+      toast.success('All notifications marked as read.');
+    } catch {
+      toast.error('Failed to mark all as read.');
+    }
   };
 
   const deleteNotification = async (id) => {
@@ -79,15 +85,20 @@ export default function Notifications() {
       await notificationAPI.delete(id);
       setNotifications((prev) => prev.filter((n) => n.id !== id));
       fetchNotifications(pagination.page);
-    } catch { /* ignore */ }
+    } catch {
+      toast.error('Failed to delete notification.');
+    }
   };
 
   const clearRead = async () => {
     if (!confirm('Delete all read notifications?')) return;
     try {
       await notificationAPI.clearRead();
+      toast.success('Read notifications cleared.');
       fetchNotifications(1);
-    } catch { /* ignore */ }
+    } catch {
+      toast.error('Failed to clear notifications.');
+    }
   };
 
   return (

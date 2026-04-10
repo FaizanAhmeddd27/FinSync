@@ -1,28 +1,16 @@
-// src/services/email.service.ts
-import { resend } from '../config/resend';
+
+import { transporter } from '../config/nodemailer';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
 
-const SENDER_EMAIL = "FinSync <onboarding@resend.dev>";
-
-// 🔧 DEV FIX: Resend free tier only delivers to your own verified email.
-// Set DEV_EMAIL_OVERRIDE in .env to your Resend account email during development.
-const resolveRecipient = (to: string): string => {
-  if (env.NODE_ENV === 'development' && env.DEV_EMAIL_OVERRIDE) {
-    logger.warn(`[DEV] Redirecting email from ${to} → ${env.DEV_EMAIL_OVERRIDE}`);
-    return env.DEV_EMAIL_OVERRIDE;
-  }
-  return to;
-};
+const SENDER_EMAIL = `FinSync <${env.EMAIL_USER}>`;
 
 export class EmailService {
   static async sendOTP(to: string, otp: string, name: string, purpose: string = 'verification'): Promise<boolean> {
     try {
-      const recipient = resolveRecipient(to);
-
-      const { data, error } = await resend.emails.send({
+      const info = await transporter.sendMail({
         from: SENDER_EMAIL,
-        to: [recipient],
+        to,
         subject: `FinSync — Your ${purpose} code: ${otp}`,
         html: `
           <!DOCTYPE html>
@@ -64,13 +52,7 @@ export class EmailService {
         `,
       });
 
-      if (error) {
-        // Log the FULL error so you can debug
-        logger.error('Resend API error:', JSON.stringify(error, null, 2));
-        return false;
-      }
-
-      logger.info(`OTP email sent → ${recipient} (original: ${to}) | ID: ${data?.id}`);
+      logger.info(`OTP email sent → ${to} | Message ID: ${info.messageId}`);
       return true;
     } catch (err) {
       logger.error('Email service exception:', err);
@@ -80,10 +62,9 @@ export class EmailService {
 
   static async sendWelcome(to: string, name: string): Promise<boolean> {
     try {
-      const recipient = resolveRecipient(to);
-      const { error } = await resend.emails.send({
+      const info = await transporter.sendMail({
         from: SENDER_EMAIL,
-        to: [recipient],
+        to,
         subject: 'Welcome to FinSync! 🏦',
         html: `
           <!DOCTYPE html>
@@ -114,8 +95,9 @@ export class EmailService {
           </html>
         `,
       });
-      if (error) logger.error('Welcome email error:', JSON.stringify(error));
-      return !error;
+
+      logger.info(`Welcome email sent → ${to} | Message ID: ${info.messageId}`);
+      return true;
     } catch (err) {
       logger.error('Welcome email exception:', err);
       return false;
@@ -127,14 +109,13 @@ export class EmailService {
     amount: number, currency: string, description: string, balance: number
   ): Promise<boolean> {
     try {
-      const recipient = resolveRecipient(to);
       const emoji = type === 'credit' ? '💰' : '💸';
       const color = type === 'credit' ? '#00b87a' : '#f4212e';
       const label = type === 'credit' ? 'Received' : 'Sent';
 
-      const { error } = await resend.emails.send({
+      const info = await transporter.sendMail({
         from: SENDER_EMAIL,
-        to: [recipient],
+        to,
         subject: `${emoji} ${currency} ${amount.toFixed(2)} ${label} — FinSync`,
         html: `
           <!DOCTYPE html>
@@ -158,8 +139,9 @@ export class EmailService {
           </html>
         `,
       });
-      if (error) logger.error('Transaction alert error:', JSON.stringify(error));
-      return !error;
+
+      logger.info(`Transaction alert sent → ${to} | Message ID: ${info.messageId}`);
+      return true;
     } catch (err) {
       logger.error('Transaction alert exception:', err);
       return false;
@@ -168,10 +150,9 @@ export class EmailService {
 
   static async sendFraudAlert(to: string, name: string, alertType: string, description: string): Promise<boolean> {
     try {
-      const recipient = resolveRecipient(to);
-      const { error } = await resend.emails.send({
+      const info = await transporter.sendMail({
         from: SENDER_EMAIL,
-        to: [recipient],
+        to,
         subject: '🚨 Security Alert — FinSync',
         html: `
           <!DOCTYPE html>
@@ -201,8 +182,9 @@ export class EmailService {
           </html>
         `,
       });
-      if (error) logger.error('Fraud alert error:', JSON.stringify(error));
-      return !error;
+
+      logger.info(`Fraud alert sent → ${to} | Message ID: ${info.messageId}`);
+      return true;
     } catch (err) {
       logger.error('Fraud alert exception:', err);
       return false;

@@ -325,8 +325,8 @@ export default function Statements() {
                       <CardTitle className="text-base">Spending Breakdown</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="h-[200px] mb-4">
-                        <ResponsiveContainer width="100%" height="100%">
+                      <div className="h-[200px] min-h-[200px] mb-4">
+                        <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                           <RePieChart>
                             <Pie
                               data={statement.category_breakdown}

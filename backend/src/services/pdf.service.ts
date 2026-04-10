@@ -40,17 +40,17 @@ export class PDFService {
 
         const currencySymbol = CurrencyService.format(0, data.currency).replace('0.00', '');
 
-        // ======================== HEADER ========================
-        // Logo / Title
+        
+        
         doc
           .fontSize(28)
           .fillColor('#1c9cf0')
-          .text('🏦 FinSync', 50, 40)
+          .text('FinSync', 50, 40)
           .fontSize(10)
           .fillColor('#72767a')
           .text('Advanced Digital Banking', 50, 75);
 
-        // Statement title
+        
         doc
           .fontSize(16)
           .fillColor('#0f1419')
@@ -64,14 +64,14 @@ export class PDFService {
             align: 'right',
           });
 
-        // Divider
+        
         doc
           .moveTo(50, 100)
           .lineTo(545, 100)
           .strokeColor('#e1eaef')
           .stroke();
 
-        // ======================== ACCOUNT INFO ========================
+        
         doc
           .fontSize(11)
           .fillColor('#0f1419')
@@ -97,12 +97,12 @@ export class PDFService {
           .fillColor('#72767a')
           .text(data.currency, 170, 160);
 
-        // ======================== SUMMARY BOXES ========================
+        
         const boxY = 195;
         const boxHeight = 55;
         const boxWidth = 118;
 
-        // Opening Balance
+        
         doc
           .rect(50, boxY, boxWidth, boxHeight)
           .fillAndStroke('#f7f8f8', '#e1eaef');
@@ -123,7 +123,7 @@ export class PDFService {
             { width: boxWidth - 10, align: 'center' }
           );
 
-        // Total Credits
+        
         doc
           .rect(50 + boxWidth + 8, boxY, boxWidth, boxHeight)
           .fillAndStroke('#f0fdf4', '#86efac');
@@ -144,7 +144,7 @@ export class PDFService {
             { width: boxWidth - 10, align: 'center' }
           );
 
-        // Total Debits
+        
         doc
           .rect(50 + (boxWidth + 8) * 2, boxY, boxWidth, boxHeight)
           .fillAndStroke('#fef2f2', '#fca5a5');
@@ -167,7 +167,7 @@ export class PDFService {
             { width: boxWidth - 10, align: 'center' }
           );
 
-        // Closing Balance
+        
         doc
           .rect(50 + (boxWidth + 8) * 3, boxY, boxWidth, boxHeight)
           .fillAndStroke('#eff6ff', '#93c5fd');
@@ -190,10 +190,10 @@ export class PDFService {
             { width: boxWidth - 10, align: 'center' }
           );
 
-        // TRANSACTIONS TABLE 
+        
         let tableTop = boxY + boxHeight + 30;
 
-        // Table header
+        
         doc
           .rect(50, tableTop, 495, 22)
           .fillAndStroke('#17181c', '#17181c');
@@ -219,16 +219,16 @@ export class PDFService {
 
         tableTop += 22;
 
-        // Table rows
+        
         for (let i = 0; i < data.transactions.length; i++) {
           const txn = data.transactions[i];
 
-          // Check if we need a new page
+          
           if (tableTop > 730) {
             doc.addPage();
             tableTop = 50;
 
-            // Re-draw header on new page
+            
             doc
               .rect(50, tableTop, 495, 22)
               .fillAndStroke('#17181c', '#17181c');
@@ -292,7 +292,7 @@ export class PDFService {
           tableTop += 20;
         }
 
-        // FOOTER 
+        
         const pageBottom = doc.page.height - 50;
         doc
           .moveTo(50, pageBottom - 20)

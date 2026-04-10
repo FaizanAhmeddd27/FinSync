@@ -4,8 +4,10 @@ import {
   ArrowLeftRight, ArrowRight, ArrowLeft, Search,
   CheckCircle2, AlertCircle, Loader2, Shield,
   User, Send, Copy, Clock, Calendar, Repeat,
-  Info, Wallet, Globe, XCircle,
+  Info, Wallet, Globe, XCircle, QrCode
 } from 'lucide-react';
+import QRScannerModal from '@/components/common/QRScannerModal';
+import { QRCodeSVG } from 'qrcode.react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -17,6 +19,7 @@ import FadeInView from '@/components/animations/FadeInView';
 import { transferAPI, accountAPI } from '@/lib/api';
 import useAuthStore from '@/stores/authStore';
 import { formatCurrency, maskAccountNumber, cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 // =================== STEP INDICATOR ===================
 function TransferSteps({ currentStep }) {
@@ -140,6 +143,9 @@ export default function Transfers() {
   const [accounts, setAccounts] = useState([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
 
+  // Scanner
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+
   // Form state
   const [fromAccountId, setFromAccountId] = useState('');
   const [toAccountNumber, setToAccountNumber] = useState('');
@@ -214,9 +220,12 @@ export default function Transfers() {
       });
       if (data.success) {
         setRecipient(data.data.recipient);
+        toast.success('Recipient verified successfully!');
       }
     } catch (err) {
-      setVerifyError(err.response?.data?.message || 'Recipient not found');
+      const errMsg = err.response?.data?.message || 'Recipient not found';
+      setVerifyError(errMsg);
+      toast.error(errMsg);
     } finally {
       setVerifying(false);
     }
@@ -255,9 +264,12 @@ export default function Transfers() {
         setTransferData(data.data);
         setStep(2);
         startResendCooldown();
+        toast.info('OTP sent to your email for verification.');
       }
     } catch (err) {
-      setInitiateError(err.response?.data?.message || 'Transfer failed');
+      const errMsg = err.response?.data?.message || 'Transfer failed';
+      setInitiateError(errMsg);
+      toast.error(errMsg);
     } finally {
       setInitiating(false);
     }
@@ -278,9 +290,12 @@ export default function Transfers() {
       if (data.success) {
         setResult(data.data);
         setStep(3);
+        toast.success('Transfer completed successfully!');
       }
     } catch (err) {
-      setOtpError(err.response?.data?.message || 'Invalid OTP');
+      const errMsg = err.response?.data?.message || 'Invalid OTP';
+      setOtpError(errMsg);
+      toast.error(errMsg);
     } finally {
       setConfirming(false);
     }
@@ -314,6 +329,7 @@ export default function Transfers() {
   // Copy reference
   const copyRef = (text) => {
     navigator.clipboard.writeText(text);
+    toast.success('Reference copied to clipboard!');
   };
 
   if (accountsLoading) {
@@ -413,6 +429,14 @@ export default function Transfers() {
                       />
                       <Button
                         variant="outline"
+                        onClick={() => setIsScannerOpen(true)}
+                        className="p-3"
+                        title="Scan QR Code"
+                      >
+                        <QrCode className="h-5 w-5" />
+                      </Button>
+                      <Button
+                        variant="outline"
                         onClick={handleVerifyRecipient}
                         isLoading={verifying}
                         disabled={!toAccountNumber.trim()}
@@ -480,8 +504,9 @@ export default function Transfers() {
                     <Input
                       label="Amount"
                       type="number"
-                      placeholder="0.00"
-                      icon={Globe}
+                      placeholder={formatCurrency(0, selectedFromAccount?.currency || user?.preferred_currency || 'USD').replace(/[0-9.,\s]/g, '') + '0.00'}
+                      icon={null}
+                      prefix={<span className="text-muted-foreground font-bold text-xs">{(selectedFromAccount?.currency || user?.preferred_currency || 'USD') === 'USD' ? '$' : (selectedFromAccount?.currency || user?.preferred_currency || 'USD')}</span>}
                       value={amount}
                       onChange={(e) => { setAmount(e.target.value); setInitiateError(''); }}
                       min="0.01"
@@ -651,6 +676,27 @@ export default function Transfers() {
                 </motion.div>
               )}
 
+              {/* QR Scanner Modal */}
+              <QRScannerModal 
+                isOpen={isScannerOpen} 
+                onClose={() => setIsScannerOpen(false)} 
+                onScan={(data) => {
+                  setIsScannerOpen(false);
+                  if (data?.account) {
+                     setToAccountNumber(data.account);
+                     // Automatically verify the scanned account
+                     setTimeout(() => {
+                         document.getElementById('verify-btn-hidden')?.click();
+                     }, 300);
+                  } else {
+                     toast.error('Invalid QR code format');
+                  }
+                }}
+              />
+
+              {/* Hidden button for triggering verification after scan */}
+              <button id="verify-btn-hidden" className="hidden" onClick={handleVerifyRecipient}></button>
+
               {/* ========== STEP 2: OTP ========== */}
               {step === 2 && (
                 <motion.div
@@ -788,6 +834,23 @@ export default function Transfers() {
                   <div className="text-3xl font-bold text-success">
                     {formatCurrency(result.amount, result.from_currency)}
                   </div>
+
+                  {/* Receipt QR Code */}
+                  {result.transfer_id && (
+                     <div className="mt-6 flex flex-col items-center">
+                       <p className="text-sm font-medium mb-3">Payment Receipt QR</p>
+                       <div className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm inline-block">
+                         <QRCodeSVG 
+                           value={`${window.location.origin}/verify-payment/${result.transfer_id}`} 
+                           size={160} 
+                           level="M" 
+                         />
+                       </div>
+                       <p className="text-xs text-muted-foreground mt-2 max-w-xs mx-auto">
+                         Show this QR code to the receiver to verify the payment
+                       </p>
+                     </div>
+                  )}
 
                   {/* Conversion */}
                   {result.exchange_rate && (

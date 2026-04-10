@@ -20,6 +20,7 @@ import FadeInView from '@/components/animations/FadeInView';
 import { accountAPI } from '@/lib/api';
 import useAuthStore from '@/stores/authStore';
 import { formatCurrency, maskAccountNumber, cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 const ACCOUNT_TYPES = [
   { value: 'savings', label: 'Savings', icon: PiggyBank, desc: 'For long-term savings with interest', color: '#00b87a' },
@@ -314,12 +315,15 @@ function CreateAccountModal({ isOpen, onClose, onSuccess }) {
       if (data.success) {
         onSuccess?.();
         onClose();
+        toast.success('Account created successfully!');
         // Reset
         setSelectedType('');
         setInitialDeposit('');
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create account');
+      const errMsg = err.response?.data?.message || 'Failed to create account';
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setIsLoading(false);
     }
@@ -413,8 +417,9 @@ function CreateAccountModal({ isOpen, onClose, onSuccess }) {
         <Input
           label="Initial Deposit (optional)"
           type="number"
-          placeholder="0.00"
-          icon={Wallet}
+          placeholder={formatCurrency(0, currency).replace(/[0-9.,\s]/g, '') + '0.00'}
+          icon={null}
+          prefix={<span className="text-muted-foreground font-bold text-xs">{currency === 'USD' ? '$' : currency}</span>}
           value={initialDeposit}
           onChange={(e) => setInitialDeposit(e.target.value)}
           min="0"
@@ -481,9 +486,12 @@ export default function Accounts() {
   const handleSetDefault = async (accountId) => {
     try {
       await accountAPI.update(accountId, { is_default: true });
+      toast.success('Default account updated.');
       fetchAccounts();
       setSelectedAccount(null);
-    } catch { /* ignore */ }
+    } catch {
+      toast.error('Failed to update default account.');
+    }
   };
 
   if (loading) {

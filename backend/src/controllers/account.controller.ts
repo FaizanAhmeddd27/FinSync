@@ -1,4 +1,3 @@
-// src/controllers/account.controller.ts
 import { Request, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase';
 import { asyncHandler } from '../middleware/errorHandler';
@@ -12,7 +11,6 @@ import { maskAccountNumber, parsePagination } from '../utils/helpers';
 import { CurrencyService } from '../services/currency.service';
 import { logger } from '../utils/logger';
 
-// GET ALL USER ACCOUNTS 
 export const getAccounts = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -29,7 +27,6 @@ export const getAccounts = asyncHandler(
       throw new BadRequestError('Failed to fetch accounts');
     }
 
-    // Calculate total balance across all currencies (converted to preferred)
     let totalBalanceInPreferred = 0;
     const preferredCurrency = req.user.preferred_currency || 'USD';
 
@@ -48,7 +45,6 @@ export const getAccounts = asyncHandler(
       }
     }
 
-    // Mask account numbers for response
     const maskedAccounts = (accounts || []).map((acc) => ({
       ...acc,
       masked_number: maskAccountNumber(acc.account_number),
@@ -71,7 +67,6 @@ export const getAccounts = asyncHandler(
   }
 );
 
-//GET SINGLE ACCOUNT 
 export const getAccountById = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -89,7 +84,6 @@ export const getAccountById = asyncHandler(
       throw new NotFoundError('Account not found');
     }
 
-    // Get recent transactions for this account
     const { data: recentTxns } = await supabaseAdmin
       .from('ledger')
       .select('*')
@@ -97,7 +91,6 @@ export const getAccountById = asyncHandler(
       .order('created_at', { ascending: false })
       .limit(5);
 
-    // Get monthly stats
     const now = new Date();
     const firstOfMonth = new Date(
       now.getFullYear(),
@@ -140,14 +133,12 @@ export const getAccountById = asyncHandler(
   }
 );
 
-// CREATE NEW ACCOUNT 
 export const createAccount = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
 
     const { account_type, initial_deposit, currency } = req.body;
 
-    // Limit: max 10 accounts per user
     const { count } = await supabaseAdmin
       .from('accounts')
       .select('*', { count: 'exact', head: true })
@@ -159,7 +150,6 @@ export const createAccount = asyncHandler(
       );
     }
 
-    // Check for duplicate account types with same currency
     const { data: existing } = await supabaseAdmin
       .from('accounts')
       .select('id')
@@ -174,7 +164,6 @@ export const createAccount = asyncHandler(
       );
     }
 
-    // Use stored procedure to create account atomically
     const { data: accountId, error } = await supabaseAdmin.rpc(
       'open_new_account',
       {
@@ -190,14 +179,12 @@ export const createAccount = asyncHandler(
       throw new BadRequestError('Failed to create account. Please try again.');
     }
 
-    // Fetch the created account
     const { data: newAccount } = await supabaseAdmin
       .from('accounts')
       .select('*')
       .eq('id', accountId)
       .single();
 
-    // Audit log
     await supabaseAdmin.from('audit_log').insert({
       user_id: req.user.id,
       action: 'CREATE_ACCOUNT',
@@ -212,7 +199,6 @@ export const createAccount = asyncHandler(
       user_agent: req.get('user-agent'),
     });
 
-    // Notification
     await supabaseAdmin.from('notifications').insert({
       user_id: req.user.id,
       type: 'system',
@@ -236,7 +222,6 @@ export const createAccount = asyncHandler(
   }
 );
 
-// UPDATE ACCOUNT 
 export const updateAccount = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -244,7 +229,6 @@ export const updateAccount = asyncHandler(
     const { accountId } = req.params;
     const { is_default } = req.body;
 
-    // Verify account ownership
     const { data: account } = await supabaseAdmin
       .from('accounts')
       .select('*')
@@ -256,7 +240,6 @@ export const updateAccount = asyncHandler(
       throw new NotFoundError('Account not found');
     }
 
-    // If setting as default, unset other defaults first
     if (is_default === true) {
       await supabaseAdmin
         .from('accounts')
@@ -284,7 +267,6 @@ export const updateAccount = asyncHandler(
   }
 );
 
-//  CLOSE ACCOUNT 
 export const closeAccount = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -319,7 +301,6 @@ export const closeAccount = asyncHandler(
       .update({ status: 'closed' })
       .eq('id', accountId);
 
-    // Audit log
     await supabaseAdmin.from('audit_log').insert({
       user_id: req.user.id,
       action: 'CLOSE_ACCOUNT',
@@ -336,7 +317,6 @@ export const closeAccount = asyncHandler(
   }
 );
 
-// GET ACCOUNT BALANCE HISTORY (30 days) 
 export const getBalanceHistory = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
@@ -344,7 +324,6 @@ export const getBalanceHistory = asyncHandler(
     const { accountId } = req.params;
     const days = parseInt(req.query.days as string) || 30;
 
-    // Verify ownership
     const { data: account } = await supabaseAdmin
       .from('accounts')
       .select('id, user_id, currency')
@@ -358,7 +337,6 @@ export const getBalanceHistory = asyncHandler(
       Date.now() - days * 24 * 60 * 60 * 1000
     ).toISOString();
 
-    // Get daily running balance snapshots
     const { data: history } = await supabaseAdmin
       .from('ledger')
       .select('running_balance, created_at')
@@ -366,14 +344,12 @@ export const getBalanceHistory = asyncHandler(
       .gte('created_at', startDate)
       .order('created_at', { ascending: true });
 
-    // Group by day (take last entry per day)
     const dailyBalances: Record<string, number> = {};
     for (const entry of history || []) {
       const day = new Date(entry.created_at).toISOString().split('T')[0];
       dailyBalances[day] = Number(entry.running_balance);
     }
 
-    // Fill in missing days
     const result: Array<{ date: string; balance: number }> = [];
     const currentDate = new Date(startDate);
     const today = new Date();
@@ -401,12 +377,10 @@ export const getBalanceHistory = asyncHandler(
   }
 );
 
-// GET AI ACCOUNT SUGGESTION 
 export const getAccountSuggestion = asyncHandler(
   async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
 
-    // Get user's spending patterns
     const { data: accounts } = await supabaseAdmin
       .from('accounts')
       .select('account_type, balance, currency')

@@ -1,4 +1,3 @@
-// src/controllers/auth.controller.ts
 import { Request, Response, NextFunction } from 'express';
 import passport from 'passport';
 import { supabaseAdmin } from '../config/supabase';
@@ -21,12 +20,12 @@ import { asyncHandler } from '../middleware/errorHandler';
 import { logger } from '../utils/logger';
 import { TokenPayload } from '../types';
 import jwt from 'jsonwebtoken';
+import { StorageService } from '../services/storage.service';
+import QRCode from 'qrcode';
 
-// REGISTER 
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const { name, email, password, phone, dob, preferred_currency, language } = req.body;
-
-  // Check if user already exists
+  const avatarFile = req.file;
   const { data: existingUser } = await supabaseAdmin
     .from('users')
     .select('id, provider')
@@ -35,18 +34,19 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 
   if (existingUser) {
     throw new ConflictError(
-      `An account with this email already exists. ${
-        existingUser.provider !== 'local'
-          ? `Try signing in with ${existingUser.provider}.`
-          : ''
+      `An account with this email already exists. ${existingUser.provider !== 'local'
+        ? `Try signing in with ${existingUser.provider}.`
+        : ''
       }`
     );
   }
 
-  // Hash password
+  let avatar_url = null;
+  if (avatarFile) {
+    avatar_url = await StorageService.uploadImage(avatarFile);
+  }
   const password_hash = await AuthService.hashPassword(password);
 
-  // Create user
   const { data: newUser, error } = await supabaseAdmin
     .from('users')
     .insert({
@@ -58,6 +58,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
       preferred_currency: preferred_currency || 'USD',
       language: language || 'en',
       provider: 'local',
+      avatar_url,
     })
     .select()
     .single();
@@ -67,17 +68,39 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     throw new BadRequestError('Failed to create account. Please try again.');
   }
 
-  // Create default accounts (savings + wallet)
   try {
     await supabaseAdmin.rpc('create_user_default_accounts', {
       p_user_id: newUser.id,
       p_currency: preferred_currency || 'USD',
     });
+
+    const { data: accounts } = await supabaseAdmin
+      .from('accounts')
+      .select('account_number')
+      .eq('user_id', newUser.id)
+      .eq('account_type', 'savings')
+      .single();
+
+    if (accounts) {
+      const qrData = JSON.stringify({
+        type: 'personal',
+        account: accounts.account_number,
+        name: newUser.name,
+        bank: 'FINSYNC'
+      });
+
+      const qrBuffer = await QRCode.toBuffer(qrData, { width: 400, margin: 2, color: { dark: '#000000ff', light: '#ffffffff' } });
+      const qr_code_url = await StorageService.uploadBuffer(qrBuffer, 'image/png', 'qr.png', 'qrcodes', 'users');
+
+      await supabaseAdmin
+        .from('users')
+        .update({ qr_code_url })
+        .eq('id', newUser.id);
+    }
   } catch (err) {
-    logger.error('Default accounts creation failed:', err);
+    logger.error('Default accounts/QR creation failed:', err);
   }
 
-  // Create default budget categories
   const defaultCategories = [
     { category_name: 'Food & Dining', color: '#ff6b6b', icon: 'utensils', monthly_limit: 500 },
     { category_name: 'Shopping', color: '#4ecdc4', icon: 'shopping-bag', monthly_limit: 300 },
@@ -95,19 +118,14 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  // Generate OTP for email verification
   const otp = await OTPService.generateAndStore(newUser.id, 'email_verification');
 
-  // Send OTP email
   await EmailService.sendOTP(email, otp, name, 'email verification');
 
-  // Send SMS OTP if phone provided
   if (phone) {
     const phoneOtp = await OTPService.generateAndStore(newUser.id, 'phone_verification');
     await SMSService.sendOTP(phone, phoneOtp);
   }
-
-  // Create notification
   await supabaseAdmin.from('notifications').insert({
     user_id: newUser.id,
     type: 'system',
@@ -115,7 +133,6 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     message: 'Your account has been created. Please verify your email to get started.',
   });
 
-  // Audit log
   await supabaseAdmin.from('audit_log').insert({
     user_id: newUser.id,
     action: 'REGISTER',
@@ -139,11 +156,9 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
-// ===================== LOGIN =====================
 export const login = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const { email, password } = req.body;
 
-  // Check if user exists
   const { data: user } = await supabaseAdmin
     .from('users')
     .select('*')
@@ -155,25 +170,19 @@ export const login = asyncHandler(async (req: Request, res: Response, next: Next
     throw new UnauthorizedError('Invalid email or password');
   }
 
-  // Check if account is locked
   const isLocked = await redisHelpers.isAccountLocked(user.id);
   if (isLocked) {
     await AuthService.recordLoginAttempt(email, user.id, req.ip || '', req.get('user-agent') || null, false, 'Account locked');
     throw new AccountLockedError();
   }
 
-  // Check if OAuth user trying local login
   if (user.provider !== 'local' && !user.password_hash) {
     throw new BadRequestError(`This account uses ${user.provider} sign-in. Please use the ${user.provider} button.`);
   }
-
-  // Verify password
   const isMatch = await AuthService.verifyPassword(password, user.password_hash);
   if (!isMatch) {
-    // recordLoginAttempt already increments the counter — do NOT call incrementLoginAttempts again
     await AuthService.recordLoginAttempt(email, user.id, req.ip || '', req.get('user-agent') || null, false, 'Invalid password');
 
-    // Read current count from Redis (don't increment again)
     const { redis } = await import('../config/redis');
     const currentAttempts = Number(await redis.get(`login_attempts:${user.id}`)) || 0;
     const remaining = env.MAX_LOGIN_ATTEMPTS - currentAttempts;
@@ -185,7 +194,6 @@ export const login = asyncHandler(async (req: Request, res: Response, next: Next
     throw new UnauthorizedError(`Invalid password. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.`);
   }
 
-  // Check if email is verified
   if (!user.is_email_verified) {
     const otp = await OTPService.generateAndStore(user.id, 'email_verification');
     await EmailService.sendOTP(email, otp, user.name, 'email verification');
@@ -202,7 +210,6 @@ export const login = asyncHandler(async (req: Request, res: Response, next: Next
     return;
   }
 
-  // Check if 2FA is enabled
   if (user.two_factor_enabled) {
     const otp = await OTPService.generateAndStore(user.id, 'login_2fa');
     await EmailService.sendOTP(email, otp, user.name, 'two-factor authentication');
@@ -219,7 +226,6 @@ export const login = asyncHandler(async (req: Request, res: Response, next: Next
     return;
   }
 
-  // Generate tokens
   const tokenPayload: TokenPayload = {
     userId: user.id,
     email: user.email,
@@ -228,17 +234,14 @@ export const login = asyncHandler(async (req: Request, res: Response, next: Next
   const tokens = AuthService.generateTokens(tokenPayload);
   await AuthService.storeRefreshToken(user.id, tokens.refreshToken);
 
-  // Record successful login
   await AuthService.recordLoginAttempt(email, user.id, req.ip || '', req.get('user-agent') || null, true);
 
-  // Set cookies
   res.cookie('accessToken', tokens.accessToken, COOKIE_OPTIONS);
   res.cookie('refreshToken', tokens.refreshToken, {
     ...COOKIE_OPTIONS,
     maxAge: env.JWT_COOKIE_EXPIRE * 24 * 60 * 60 * 1000,
   });
 
-  // Audit log
   await supabaseAdmin.from('audit_log').insert({
     user_id: user.id,
     action: 'LOGIN',
@@ -261,7 +264,6 @@ export const login = asyncHandler(async (req: Request, res: Response, next: Next
   });
 });
 
-//VERIFY OTP 
 export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
   const { userId, otp, type } = req.body;
 
@@ -271,14 +273,12 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
     throw new BadRequestError('Invalid or expired OTP. Please request a new one.');
   }
 
-  // Handle based on OTP type
   if (type === 'email_verification') {
     await supabaseAdmin
       .from('users')
       .update({ is_email_verified: true })
       .eq('id', userId);
 
-    // Get user for token generation
     const { data: user } = await supabaseAdmin
       .from('users')
       .select('*')
@@ -287,7 +287,6 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
 
     if (!user) throw new NotFoundError('User not found');
 
-    // Generate tokens and log in
     const tokenPayload: TokenPayload = {
       userId: user.id,
       email: user.email,
@@ -302,7 +301,6 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
       maxAge: env.JWT_COOKIE_EXPIRE * 24 * 60 * 60 * 1000,
     });
 
-    // Send welcome email
     await EmailService.sendWelcome(user.email, user.name);
 
     res.status(200).json({
@@ -371,7 +369,6 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
-  // For transfer OTP, just return success
   res.status(200).json({
     success: true,
     message: 'OTP verified successfully',
@@ -413,7 +410,6 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
     .eq('email', email)
     .single();
 
-  // Always return success (security — don't reveal if email exists)
   if (!user || user.provider !== 'local') {
     res.status(200).json({
       success: true,
@@ -435,25 +431,20 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
 export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
   const { userId, otp, newPassword } = req.body;
 
-  // Verify OTP
   const isValid = await OTPService.verify(userId, otp, 'email_verification');
   if (!isValid) {
     throw new BadRequestError('Invalid or expired OTP');
   }
 
-  // Hash new password
   const password_hash = await AuthService.hashPassword(newPassword);
 
-  // Update password
   await supabaseAdmin
     .from('users')
     .update({ password_hash })
     .eq('id', userId);
 
-  // Revoke all sessions
   await AuthService.revokeRefreshToken(userId);
 
-  // Audit log
   await supabaseAdmin.from('audit_log').insert({
     user_id: userId,
     action: 'PASSWORD_RESET',
@@ -476,7 +467,6 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
     throw new UnauthorizedError('Refresh token not provided');
   }
 
-  // Verify refresh token
   let decoded: TokenPayload;
   try {
     decoded = jwt.verify(token, env.JWT_REFRESH_SECRET) as TokenPayload;
@@ -484,13 +474,11 @@ export const refreshToken = asyncHandler(async (req: Request, res: Response) => 
     throw new UnauthorizedError('Invalid or expired refresh token');
   }
 
-  // Check if refresh token is in Redis
   const isValid = await AuthService.verifyRefreshToken(decoded.userId, token);
   if (!isValid) {
     throw new UnauthorizedError('Refresh token has been revoked');
   }
 
-  // Generate new tokens
   const tokenPayload: TokenPayload = {
     userId: decoded.userId,
     email: decoded.email,
@@ -519,7 +507,6 @@ export const logout = asyncHandler(async (req: Request, res: Response) => {
   if (req.user) {
     await AuthService.revokeRefreshToken(req.user.id);
 
-    // Audit log
     await supabaseAdmin.from('audit_log').insert({
       user_id: req.user.id,
       action: 'LOGOUT',
@@ -548,7 +535,6 @@ export const getCurrentUser = asyncHandler(async (req: Request, res: Response) =
     throw new UnauthorizedError('Not authenticated');
   }
 
-  // Get full user data with accounts summary
   const { data: user } = await supabaseAdmin
     .from('users')
     .select('*')
@@ -557,14 +543,12 @@ export const getCurrentUser = asyncHandler(async (req: Request, res: Response) =
 
   if (!user) throw new NotFoundError('User not found');
 
-  // Get accounts
   const { data: accounts } = await supabaseAdmin
     .from('accounts')
     .select('*')
     .eq('user_id', req.user.id)
     .eq('status', 'active');
 
-  // Get unread notifications count
   const { count: unreadNotifications } = await supabaseAdmin
     .from('notifications')
     .select('*', { count: 'exact', head: true })
@@ -621,11 +605,84 @@ export const googleCallback = asyncHandler(async (req: Request, res: Response) =
   res.cookie('accessToken', tokens.accessToken, COOKIE_OPTIONS);
   res.cookie('refreshToken', tokens.refreshToken, { ...COOKIE_OPTIONS, maxAge: env.JWT_COOKIE_EXPIRE * 24 * 60 * 60 * 1000 });
 
-  // Pass tokens in URL so frontend can store in localStorage
   res.redirect(`${env.CLIENT_URL}/auth/callback?accessToken=${tokens.accessToken}&refreshToken=${tokens.refreshToken}`);
 });
 
-// Same change for githubCallback
+export const updateProfile = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) throw new UnauthorizedError();
+
+  const { name, phone, language } = req.body;
+  const avatarFile = req.file;
+
+  logger.debug('Update profile request:', { body: req.body, file: !!avatarFile });
+
+  const { data: currentUser, error: userError } = await supabaseAdmin
+    .from('users')
+    .select('avatar_url')
+    .eq('id', req.user.id)
+    .single();
+
+  if (userError || !currentUser) {
+    logger.error('Failed to fetch existing user:', userError);
+    throw new NotFoundError('User not found');
+  }
+
+  const updateData: any = {};
+  if (name) updateData.name = name;
+  if (phone) updateData.phone = phone;
+  if (language) updateData.language = language;
+
+  if (avatarFile) {
+    const newAvatarUrl = await StorageService.uploadImage(avatarFile);
+    updateData.avatar_url = newAvatarUrl;
+
+    if (currentUser.avatar_url) {
+      await StorageService.deleteImage(currentUser.avatar_url);
+    }
+  }
+
+  logger.debug('Final update data:', updateData);
+
+  if (Object.keys(updateData).length === 0) {
+    res.status(200).json({
+      success: true,
+      message: 'No changes detected',
+      data: { user: sanitizeUser(req.user) },
+    });
+    return;
+  }
+
+  const { data: updatedUser, error } = await supabaseAdmin
+    .from('users')
+    .update(updateData)
+    .eq('id', req.user.id)
+    .select('id, email, name, role, provider, is_email_verified, is_phone_verified, two_factor_enabled, preferred_currency, language, kyc_status, avatar_url, phone, is_active')
+    .single();
+
+  if (error || !updatedUser) {
+    logger.error('Supabase profile update failed! Error:', error || 'Unknown failure, no user returned');
+    throw new BadRequestError(`Failed to update profile: ${error?.message || 'Update operation yielded no result'}`);
+  }
+
+  await supabaseAdmin.from('audit_log').insert({
+    user_id: req.user.id,
+    action: 'UPDATE_PROFILE',
+    table_name: 'users',
+    record_id: req.user.id,
+    new_data: updateData,
+    ip_address: req.ip,
+    user_agent: req.get('user-agent'),
+  });
+
+  res.status(200).json({
+    success: true,
+    message: 'Profile updated successfully',
+    data: {
+      user: sanitizeUser(updatedUser),
+    },
+  });
+});
+
 export const githubCallback = asyncHandler(async (req: Request, res: Response) => {
   const user = req.user as any;
   if (!user) {

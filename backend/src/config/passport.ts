@@ -49,25 +49,20 @@ export const configurePassport = (passport: PassportStatic): void => {
             return done(null, false, { message: 'Invalid email or password' });
           }
 
-          // Check if account is active
           if (!user.is_active) {
             return done(null, false, { message: 'Account has been deactivated' });
           }
 
-          // Check if user registered via OAuth
           if (user.provider !== 'local' && !user.password_hash) {
             return done(null, false, {
               message: `This account uses ${user.provider} sign-in. Please use ${user.provider} to login.`,
             });
           }
 
-          // Verify password
           const isMatch = await bcrypt.compare(password, user.password_hash);
           if (!isMatch) {
             return done(null, false, { message: 'Invalid email or password' });
           }
-
-          // Return sanitized user
           const { password_hash, provider_id, ...sanitizedUser } = user;
           return done(null, sanitizedUser as any);
         } catch (err) {
@@ -93,7 +88,6 @@ export const configurePassport = (passport: PassportStatic): void => {
             return done(null, false, { message: 'No email found in Google profile' } as any);
           }
 
-          // Check if user exists
           const { data: existingUser } = await supabaseAdmin
             .from('users')
             .select('*')
@@ -101,7 +95,6 @@ export const configurePassport = (passport: PassportStatic): void => {
             .single();
 
           if (existingUser) {
-            // Update provider info if logging in with Google for first time
             if (existingUser.provider === 'local') {
               await supabaseAdmin
                 .from('users')
@@ -118,7 +111,6 @@ export const configurePassport = (passport: PassportStatic): void => {
             return done(null, { ...sanitizedUser, is_email_verified: true } as any);
           }
 
-          // Create new user
           const { data: newUser, error } = await supabaseAdmin
             .from('users')
             .insert({
@@ -138,13 +130,11 @@ export const configurePassport = (passport: PassportStatic): void => {
             return done(null, false, { message: 'Failed to create account' } as any);
           }
 
-          // Create default accounts
           await supabaseAdmin.rpc('create_user_default_accounts', {
             p_user_id: newUser.id,
             p_currency: 'USD',
           });
 
-          // Create default budget categories
           const defaultCategories = [
             { category_name: 'Food & Dining', color: '#ff6b6b', icon: 'utensils', monthly_limit: 500 },
             { category_name: 'Shopping', color: '#4ecdc4', icon: 'shopping-bag', monthly_limit: 300 },
@@ -184,7 +174,6 @@ export const configurePassport = (passport: PassportStatic): void => {
         try {
           const email = profile.emails?.[0]?.value || `${profile.username}@github.com`;
 
-          // Check if user exists
           const { data: existingUser } = await supabaseAdmin
             .from('users')
             .select('*')
@@ -208,7 +197,6 @@ export const configurePassport = (passport: PassportStatic): void => {
             return done(null, { ...sanitizedUser, is_email_verified: true } as any);
           }
 
-          // Create new user
           const { data: newUser, error } = await supabaseAdmin
             .from('users')
             .insert({
@@ -228,13 +216,11 @@ export const configurePassport = (passport: PassportStatic): void => {
             return done(null, false);
           }
 
-          // Create default accounts
           await supabaseAdmin.rpc('create_user_default_accounts', {
             p_user_id: newUser.id,
             p_currency: 'USD',
           });
 
-          // Create default budget categories
           const defaultCategories = [
             { category_name: 'Food & Dining', color: '#ff6b6b', icon: 'utensils', monthly_limit: 500 },
             { category_name: 'Shopping', color: '#4ecdc4', icon: 'shopping-bag', monthly_limit: 300 },

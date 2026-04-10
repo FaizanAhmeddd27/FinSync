@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { authAPI } from '@/lib/api';
 
+let _initializePromise = null;
+
 const useAuthStore = create((set, get) => ({
   user: null,
   accounts: [],
@@ -9,26 +11,46 @@ const useAuthStore = create((set, get) => ({
   unreadNotifications: 0,
 
   initialize: async () => {
-    const token = localStorage.getItem('accessToken');
-    if (!token) {
-      set({ isLoading: false, isAuthenticated: false });
-      return;
-    }
-    try {
-      const { data } = await authAPI.getMe();
-      if (data.success) {
-        set({
-          user: data.data.user,
-          accounts: data.data.accounts || [],
-          isAuthenticated: true,
-          unreadNotifications: data.data.unreadNotifications || 0,
-          isLoading: false,
-        });
+    if (_initializePromise) return _initializePromise;
+
+    _initializePromise = (async () => {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const oauthToken = urlParams.get('accessToken');
+        const oauthRefresh = urlParams.get('refreshToken');
+
+        if (oauthToken && oauthRefresh) {
+          localStorage.setItem('accessToken', oauthToken);
+          localStorage.setItem('refreshToken', oauthRefresh);
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        const token = localStorage.getItem('accessToken');
+        if (!token) {
+          set({ isLoading: false, isAuthenticated: false });
+          return;
+        }
+        const { data } = await authAPI.getMe();
+        if (data.success) {
+          set({
+            user: data.data.user,
+            accounts: data.data.accounts || [],
+            isAuthenticated: true,
+            unreadNotifications: data.data.unreadNotifications || 0,
+            isLoading: false,
+          });
+        }
+      } catch {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        set({ isLoading: false, isAuthenticated: false, user: null });
       }
-    } catch {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      set({ isLoading: false, isAuthenticated: false, user: null });
+    })();
+
+    try {
+      await _initializePromise;
+    } finally {
+      _initializePromise = null;
     }
   },
 
@@ -36,7 +58,6 @@ const useAuthStore = create((set, get) => ({
     const { data } = await authAPI.login(credentials);
 
     if (data.success && data.data?.tokens) {
-      // Direct login — tokens available
       localStorage.setItem('accessToken', data.data.tokens.accessToken);
       localStorage.setItem('refreshToken', data.data.tokens.refreshToken);
       set({
@@ -47,7 +68,6 @@ const useAuthStore = create((set, get) => ({
     }
 
     if (data.success && data.data?.requiresOTP) {
-      // OTP required
       return {
         success: true,
         requiresOTP: true,
@@ -91,6 +111,15 @@ const useAuthStore = create((set, get) => ({
   },
 
   setUser: (user) => set({ user }),
+  
+  updateProfile: async (formData) => {
+    const { data } = await authAPI.updateProfile(formData);
+    if (data.success) {
+      set({ user: data.data.user });
+    }
+    return data;
+  },
+
   setAccounts: (accounts) => set({ accounts }),
   setUnreadNotifications: (count) => set({ unreadNotifications: count }),
 }));
