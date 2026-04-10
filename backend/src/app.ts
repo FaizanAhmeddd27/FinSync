@@ -12,17 +12,35 @@ import { errorHandler } from './middleware/errorHandler';
 import { generalLimiter } from './middleware/rateLimiter';
 import { configurePassport } from './config/passport';
 import routes from './routes';
+import { logger } from './utils/logger';
 
 
 const app = express();
 
-app.use(helmet());
-app.use(cors({
-  origin: env.CLIENT_URL,
+const allowedOrigins = [
+  env.CLIENT_URL,
+  ...(process.env.CLIENT_URLS || '').split(',').map((origin) => origin.trim()).filter(Boolean),
+  ...(env.NODE_ENV === 'development' ? ['http://localhost:5173', 'http://localhost:3000'] : []),
+];
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    logger.warn(`CORS blocked origin: ${origin}`);
+    callback(null, false);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-}));
+};
+
+app.use(helmet());
+app.use(cors(corsOptions));
+app.options('/{*splat}', cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
