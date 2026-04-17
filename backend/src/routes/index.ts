@@ -14,6 +14,7 @@ import chatbotRoutes from './chatbot.routes';
 import dashboardRoutes from './dashboard.routes';
 import searchRoutes from './search.routes';
 import qrRoutes from './qr.routes';
+import vapiRoutes from './vapi.routes';
 
 const router = Router();
 
@@ -32,5 +33,7 @@ router.use('/chatbot', chatbotRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/search', searchRoutes);
 router.use('/qr', qrRoutes);
+router.use('/vapi', vapiRoutes);
+router.use('/voice', vapiRoutes); // Compatibility for Vapi Dashboard
 
 export default router;

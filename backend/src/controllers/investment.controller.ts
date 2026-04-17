@@ -1,4 +1,3 @@
-
 import { Request, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase';
 import { asyncHandler } from '../middleware/errorHandler';

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import ChatInterface from '@/components/chatbot/ChatInterface';
 import { chatbotAPI } from '@/lib/api';
-import { 
-  MessageSquare, History, Plus, Trash2, 
-  ChevronLeft, ChevronRight, Menu, Bot 
+import {
+  MessageSquare, History, Plus, Trash2,
+  ChevronLeft, ChevronRight, Menu, Bot,
+  Phone, Sparkles
 } from 'lucide-react';
+import CallAssistant from '@/components/chatbot/CallAssistant';
 import { cn } from '@/lib/utils';
 import FadeInView from '@/components/animations/FadeInView';
 import useAuthStore from '@/stores/authStore';
@@ -15,6 +17,7 @@ export default function ChatbotPage() {
   const [activeSession, setActiveSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState('chat'); // 'chat' or 'call'
 
   const fetchSessions = async () => {
     try {
@@ -52,21 +55,21 @@ export default function ChatbotPage() {
   return (
     <div className="flex h-[calc(100vh-64px-2.5rem)] lg:h-[calc(100vh-64px-3.5rem)] overflow-hidden bg-background rounded-2xl border border-border shadow-sm relative">
       {/* Sidebar - Chat History */}
-      <div 
+      <div
         className={cn(
           "fixed inset-y-0 left-0 z-40 w-72 bg-card border-r border-border transition-all duration-300 transform lg:relative lg:translate-x-0 shrink-0",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:w-0 lg:border-none lg:opacity-0"
+          (sidebarOpen && activeTab === 'chat') ? "translate-x-0" : "-translate-x-full lg:w-0 lg:border-none lg:opacity-0"
         )}
       >
         <div className="flex flex-col h-full overflow-hidden">
           <div className="p-4 border-b border-border flex items-center justify-between">
-            <button 
+            <button
               onClick={handleNewChat}
               className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all text-sm"
             >
               <Plus className="h-4 w-4" /> New Chat
             </button>
-            <button 
+            <button
               onClick={() => setSidebarOpen(false)}
               className="lg:hidden ml-2 p-2 rounded-lg hover:bg-muted"
             >
@@ -83,7 +86,7 @@ export default function ChatbotPage() {
             ) : sessions.length === 0 ? (
               <div className="p-4 text-center text-xs text-muted-foreground italic">No past conversations</div>
             ) : sessions.map(session => (
-              <div 
+              <div
                 key={session.id}
                 onClick={() => selectSession(session)}
                 className={cn(
@@ -100,7 +103,7 @@ export default function ChatbotPage() {
                     {new Date(session.updated_at).toLocaleDateString()} · {session.messageCount} msgs
                   </p>
                 </div>
-                <button 
+                <button
                   onClick={(e) => deleteSession(e, session.id)}
                   className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-destructive/10 hover:text-destructive transition-all"
                 >
@@ -126,16 +129,19 @@ export default function ChatbotPage() {
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative w-full overflow-hidden">
-        {/* Mobile & Toggle Header */}
+        {/* Header with Toolbars */}
         <div className="flex items-center justify-between p-4 border-b border-border bg-card/50 backdrop-blur-sm z-30">
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setSidebarOpen(!sidebarOpen)} 
-              className="p-2 rounded-xl bg-muted/50 hover:bg-muted transition-colors border border-border/50"
-              title={sidebarOpen ? "Hide History" : "Show History"}
-            >
-              {sidebarOpen ? <ChevronLeft className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
+          <div className="flex items-center gap-4">
+            {activeTab === 'chat' && (
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="p-2 rounded-xl bg-muted/50 hover:bg-muted transition-colors border border-border/50"
+                title={sidebarOpen ? "Hide History" : "Show History"}
+              >
+                {sidebarOpen ? <ChevronLeft className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </button>
+            )}
+            
             <div className="hidden sm:flex flex-col">
               <span className="font-bold text-sm flex items-center gap-2">
                 <Bot className="h-4 w-4 text-primary" /> AI Assistant
@@ -143,22 +149,58 @@ export default function ChatbotPage() {
               <p className="text-[10px] text-muted-foreground">Powered by FinSync Intelligence</p>
             </div>
           </div>
+
+          {/* Tab Switcher */}
+          <div className="flex items-center gap-1 bg-muted/50 p-1 rounded-xl border border-border/50">
+            <button
+              onClick={() => setActiveTab('chat')}
+              className={cn(
+                "flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
+                activeTab === 'chat'
+                  ? "bg-background text-primary shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+              )}
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              AI Chat
+            </button>
+            <button
+              onClick={() => setActiveTab('call')}
+              className={cn(
+                "flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
+                activeTab === 'call'
+                  ? "bg-background text-primary shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+              )}
+            >
+              <Phone className="h-3.5 w-3.5" />
+              AI Call
+            </button>
+          </div>
+
           <div className="flex items-center gap-2">
-             <button 
-               onClick={handleNewChat}
-               className="lg:hidden p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-             >
-               <Plus className="h-5 w-5" />
-             </button>
+             {activeTab === 'chat' && (
+               <button
+                 onClick={handleNewChat}
+                 className="lg:hidden p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+               >
+                 <Plus className="h-5 w-5" />
+               </button>
+             )}
           </div>
         </div>
 
+        {/* Content Area */}
         <FadeInView className="flex-1 overflow-hidden">
-          <ChatInterface 
-            key={activeSession?.id || 'new'} 
-            initialSessionId={activeSession?.id}
-            onSessionStart={fetchSessions}
-          />
+          {activeTab === 'chat' ? (
+            <ChatInterface
+              key={activeSession?.id || 'new'}
+              initialSessionId={activeSession?.id}
+              onSessionStart={fetchSessions}
+            />
+          ) : (
+            <CallAssistant />
+          )}
         </FadeInView>
       </div>
     </div>

@@ -17,11 +17,28 @@ import { logger } from './utils/logger';
 
 const app = express();
 
-const allowedOrigins = [
+const normalizeOrigin = (value: string): string | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return trimmed.replace(/\/+$/, '');
+  }
+};
+
+const configuredOrigins = [
   env.CLIENT_URL,
-  ...(process.env.CLIENT_URLS || '').split(',').map((origin) => origin.trim()).filter(Boolean),
+  ...(process.env.CLIENT_URLS || '').split(','),
+]
+  .map(normalizeOrigin)
+  .filter((origin): origin is string => Boolean(origin));
+
+const allowedOrigins = Array.from(new Set([
+  ...configuredOrigins,
   ...(env.NODE_ENV === 'development' ? ['http://localhost:5173', 'http://localhost:3000'] : []),
-];
+]));
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {

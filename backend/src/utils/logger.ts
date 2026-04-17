@@ -10,6 +10,7 @@ const colors = {
 
 const timestamp = (): string => new Date().toISOString();
 
+
 export const logger = {
   info: (message: string, ...args: any[]) => {
     console.log(`${colors.cyan}[${timestamp()}] INFO:${colors.reset} ${message}`, ...args);
@@ -17,6 +18,7 @@ export const logger = {
   success: (message: string, ...args: any[]) => {
     console.log(`${colors.green}[${timestamp()}] SUCCESS:${colors.reset} ${message}`, ...args);
   },
+
   warn: (message: string, ...args: any[]) => {
     console.warn(`${colors.yellow}[${timestamp()}] WARN:${colors.reset} ${message}`, ...args);
   },

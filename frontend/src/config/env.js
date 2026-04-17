@@ -5,4 +5,6 @@ const API_URL =
 
 export const env = {
   API_URL,
+  VAPI_PUBLIC_KEY: import.meta.env.VITE_VAPI_PUBLIC_KEY,
+  VAPI_ASSISTANT_ID: import.meta.env.VITE_VAPI_ASSISTANT_ID,
 };
