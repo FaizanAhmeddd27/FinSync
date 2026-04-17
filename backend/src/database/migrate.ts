@@ -9,7 +9,6 @@ const runMigration = async () => {
 
     const schemaPath = path.resolve(__dirname, 'schema.sql');
     const schema = fs.readFileSync(schemaPath, 'utf-8');
-
     
     logger.info('Schema loaded. Please run this SQL in Supabase SQL Editor.');
     logger.info(`File location: ${schemaPath}`);
@@ -21,4 +20,4 @@ const runMigration = async () => {
   }
 };
 
-runMigration();
+runMigration();                                                                                                  

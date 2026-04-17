@@ -50,6 +50,7 @@ export class CronService {
               p_converted_amount: convertedAmount,
               p_note: transfer.note || 'Scheduled transfer',
               p_reference_id: `SCH-${Date.now().toString(36).toUpperCase()}`,
+              p_category: 'Transfer',
             });
 
             if (error) {

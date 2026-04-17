@@ -55,6 +55,13 @@ DEV_EMAIL_OVERRIDE: process.env.DEV_EMAIL_OVERRIDE || '',
 
   RATE_LIMIT_WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
   RATE_LIMIT_MAX_REQUESTS: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10),
+
+
+  VAPI_API_KEY: process.env.VAPI_API_KEY!,
+  VAPI_PUBLIC_KEY: process.env.VAPI_PUBLIC_KEY!,
+  VAPI_ASSISTANT_ID: process.env.VAPI_ASSISTANT_ID!,
+  VAPI_SECRET_TOKEN: process.env.VAPI_SECRET_TOKEN!,
+  BACKEND_URL: process.env.BACKEND_URL || 'http://localhost:5000',
 } as const;
 
 const requiredVars = [
@@ -64,6 +71,10 @@ const requiredVars = [
   'JWT_SECRET',
   'JWT_REFRESH_SECRET',
   'SESSION_SECRET',
+  'VAPI_API_KEY',
+  'VAPI_PUBLIC_KEY',
+  'VAPI_ASSISTANT_ID',
+  'VAPI_SECRET_TOKEN',
 ] as const;
 
 for (const varName of requiredVars) {

@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
   ArrowUpRight, ArrowDownLeft, ArrowLeftRight,
   Plus, Download, TrendingUp, TrendingDown,
-  Wallet, PiggyBank, Eye, EyeOff, RefreshCw,
+  Wallet, PiggyBank, Eye, EyeOff,
 } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -250,7 +250,7 @@ export default function Dashboard() {
               isLoading={refreshing}
               className="gap-2"
             >
-              <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+              {!refreshing && <ArrowLeftRight className="h-4 w-4" />}
               Refresh
             </Button>
             <Link to="/transfers">
